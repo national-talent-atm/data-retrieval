@@ -29,7 +29,8 @@ export function map<T, R>(callbackFn: (value: T) => R) {
 }
 
 /**
- * Blockedly merge sub-stream to main stream.
+ * Blocking merge sub-stream to main stream.
+ * If there is any error occured, stream will be breaked.
  * No data race occur.
  *
  * @param callbackFn
@@ -48,9 +49,10 @@ export function flatMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
 }
 
 /**
- * Non-blockedly merge between each sub-stream to main stream.
+ * Non-blocking merge between each sub-stream to main stream.
  * Each sub-stream still be the same blocking type as origin.
  * If each sub-stream has error others sub-streams still continue.
+ * If main stream has error existing sub-streams still continue.
  * Data race may occur.
  *
  * @param callbackFn
@@ -60,7 +62,7 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
   let readableController: ReadableStreamDefaultController<R>;
   const subStreamSet = new Set<ReadableStream<R>>();
   let closed = false;
-  let error = false;
+  let error: unknown = null;
 
   return {
     writable: new WritableStream<T>({
@@ -72,9 +74,6 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
             subStreamSet.add(subStream);
 
             for await (const value of subStream) {
-              if (error || !subStreamSet.has(subStream)) {
-                break;
-              }
               readableController.enqueue(value);
             }
           } catch (err: unknown) {
@@ -84,8 +83,12 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
               subStreamSet.delete(subStream);
             }
 
-            if (!error && closed && subStreamSet.size === 0) {
-              readableController.close();
+            if (closed && subStreamSet.size === 0) {
+              if (error) {
+                readableController.error(error);
+              } else {
+                readableController.close();
+              }
             }
           }
         })();
@@ -95,13 +98,78 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
       },
       abort(reason) {
         closed = true;
-        error = true;
-        readableController.error(reason);
-        subStreamSet.forEach((stream) => {
-          stream.getReader().releaseLock();
-          stream.cancel(reason);
-        });
-        subStreamSet.clear();
+        error = reason;
+      },
+    }),
+    readable: new ReadableStream<R>(
+      {
+        start(controller) {
+          readableController = controller;
+        },
+      },
+      zeroCopyQueue,
+    ),
+  };
+}
+
+/**
+ * Switch to the new sub-stream.
+ * If it gets the new chunk from the main stream,
+ * the new sub-stream will be created and the old sub-stream will be canceled.
+ *
+ * @param callbackFn
+ * @returns
+ */
+export function switchMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
+  let readableController: ReadableStreamDefaultController<R>;
+  let currentSubStream: ReadableStream<R> | null = null;
+  let closed = false;
+  let error: unknown = null;
+
+  return {
+    writable: new WritableStream<T>({
+      write(chunk) {
+        (async () => {
+          let subStream: ReadableStream<R> | null = null;
+
+          try {
+            subStream = callbackFn(chunk);
+            currentSubStream = subStream;
+
+            const reader = subStream.getReader();
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) {
+                break;
+              }
+
+              if (subStream !== currentSubStream) {
+                reader.releaseLock();
+                subStream.cancel();
+                break;
+              }
+
+              readableController.enqueue(value);
+            }
+          } catch (err: unknown) {
+            console.error(err);
+          } finally {
+            if (closed && currentSubStream === subStream) {
+              if (error) {
+                readableController.error(error);
+              } else {
+                readableController.close();
+              }
+            }
+          }
+        })();
+      },
+      close() {
+        closed = true;
+      },
+      abort(reason) {
+        closed = true;
+        error = reason;
       },
     }),
     readable: new ReadableStream<R>(
