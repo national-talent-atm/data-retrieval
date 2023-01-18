@@ -28,6 +28,13 @@ export function map<T, R>(callbackFn: (value: T) => R) {
   );
 }
 
+/**
+ * Blockedly merge sub-stream to main stream.
+ * No data race occur.
+ *
+ * @param callbackFn
+ * @returns
+ */
 export function flatMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
   return toTransformStream<T, R>(
     async function* (stream) {
@@ -40,6 +47,15 @@ export function flatMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
   );
 }
 
+/**
+ * Non-blockedly merge between each sub-stream to main stream.
+ * Each sub-stream still be the same blocking type as origin.
+ * If each sub-stream has error others sub-streams still continue.
+ * Data race may occur.
+ *
+ * @param callbackFn
+ * @returns
+ */
 export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
   let readableController: ReadableStreamDefaultController<R>;
   const subStreamSet = new Set<ReadableStream<R>>();
