@@ -2,7 +2,15 @@ import { toTransformStream } from 'https://deno.land/std@0.171.0/streams/mod.ts'
 
 const zeroCopyQueue = new CountQueuingStrategy({ highWaterMark: 0 });
 
-export function filter<T>(callbackFn: (value: T) => boolean) {
+/**
+ * Filter out unwanted value.
+ *
+ * @param callbackFn
+ * @returns
+ */
+export function filter<T>(
+  callbackFn: (value: T) => boolean,
+): TransformStream<T, T> {
   return toTransformStream<T, T>(
     async function* (stream) {
       for await (const value of stream) {
@@ -16,7 +24,13 @@ export function filter<T>(callbackFn: (value: T) => boolean) {
   );
 }
 
-export function map<T, R>(callbackFn: (value: T) => R) {
+/**
+ * Map main stream to new value.
+ *
+ * @param callbackFn
+ * @returns
+ */
+export function map<T, R>(callbackFn: (value: T) => R): TransformStream<T, R> {
   return toTransformStream<T, R>(
     async function* (stream) {
       for await (const value of stream) {
@@ -36,7 +50,9 @@ export function map<T, R>(callbackFn: (value: T) => R) {
  * @param callbackFn
  * @returns
  */
-export function flatMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
+export function flatMap<T, R>(
+  callbackFn: (value: T) => ReadableStream<R>,
+): TransformStream<T, R> {
   return toTransformStream<T, R>(
     async function* (stream) {
       for await (const value of stream) {
@@ -50,7 +66,7 @@ export function flatMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
 
 /**
  * Non-blocking merge between each sub-stream to main stream.
- * Each sub-stream still be the same blocking type as origin.
+ * Each sub-stream still be blocking type.
  * If each sub-stream has error others sub-streams still continue.
  * If main stream has error existing sub-streams still continue.
  * Data race may occur.
@@ -58,7 +74,9 @@ export function flatMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
  * @param callbackFn
  * @returns
  */
-export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
+export function mergeMap<T, R>(
+  callbackFn: (value: T) => ReadableStream<R>,
+): TransformStream<T, R> {
   let readableController: ReadableStreamDefaultController<R>;
   const subStreamSet = new Set<ReadableStream<R>>();
   let closed = false;
@@ -132,7 +150,9 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
  * @param callbackFn
  * @returns
  */
-export function switchMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
+export function switchMap<T, R>(
+  callbackFn: (value: T) => ReadableStream<R>,
+): TransformStream<T, R> {
   let readableController: ReadableStreamDefaultController<R>;
   let currentSubStream: ReadableStream<R> | null = null;
   let closed = false;
