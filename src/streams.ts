@@ -64,6 +64,22 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
   let closed = false;
   let error: unknown = null;
 
+  const closeController = () => {
+    if (error) {
+      readableController.error(error);
+    } else {
+      readableController.close();
+    }
+  };
+
+  const closeStream = () => {
+    closed = true;
+    // NOTE: If there is no running subStream, close controller by self.
+    if (subStreamSet.size === 0) {
+      closeController();
+    }
+  };
+
   return {
     writable: new WritableStream<T>({
       write(chunk) {
@@ -84,21 +100,17 @@ export function mergeMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
             }
 
             if (closed && subStreamSet.size === 0) {
-              if (error) {
-                readableController.error(error);
-              } else {
-                readableController.close();
-              }
+              closeController();
             }
           }
         })();
       },
       close() {
-        closed = true;
+        closeStream();
       },
       abort(reason) {
-        closed = true;
         error = reason;
+        closeStream();
       },
     }),
     readable: new ReadableStream<R>(
@@ -125,6 +137,22 @@ export function switchMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
   let currentSubStream: ReadableStream<R> | null = null;
   let closed = false;
   let error: unknown = null;
+
+  const closeController = () => {
+    if (error) {
+      readableController.error(error);
+    } else {
+      readableController.close();
+    }
+  };
+
+  const closeStream = () => {
+    closed = true;
+    // NOTE: If there is no running currentSubStream, close controller by self.
+    if (currentSubStream === null) {
+      closeController();
+    }
+  };
 
   return {
     writable: new WritableStream<T>({
@@ -154,22 +182,23 @@ export function switchMap<T, R>(callbackFn: (value: T) => ReadableStream<R>) {
           } catch (err: unknown) {
             console.error(err);
           } finally {
-            if (closed && currentSubStream === subStream) {
-              if (error) {
-                readableController.error(error);
-              } else {
-                readableController.close();
+            if (currentSubStream === subStream) {
+              if (closed) {
+                closeController();
               }
+
+              currentSubStream = null;
             }
           }
         })();
       },
       close() {
-        closed = true;
+        closeStream();
       },
       abort(reason) {
-        closed = true;
+        console.debug('abort', reason);
         error = reason;
+        closeStream();
       },
     }),
     readable: new ReadableStream<R>(
