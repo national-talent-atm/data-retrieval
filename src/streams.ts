@@ -8,10 +8,10 @@ const zeroCopyQueue = new CountQueuingStrategy({ highWaterMark: 0 });
  * @param callbackFn
  * @returns
  */
-export function filter<T>(
-  callbackFn: (value: T) => boolean,
-): TransformStream<T, T> {
-  return toTransformStream<T, T>(
+export function filter<I>(
+  callbackFn: (value: I) => boolean,
+): TransformStream<I, I> {
+  return toTransformStream(
     async function* (stream) {
       for await (const value of stream) {
         if (callbackFn(value)) {
@@ -30,8 +30,8 @@ export function filter<T>(
  * @param callbackFn
  * @returns
  */
-export function map<T, R>(callbackFn: (value: T) => R): TransformStream<T, R> {
-  return toTransformStream<T, R>(
+export function map<I, O>(callbackFn: (value: I) => O): TransformStream<I, O> {
+  return toTransformStream<I, O>(
     async function* (stream) {
       for await (const value of stream) {
         yield callbackFn(value);
@@ -50,10 +50,10 @@ export function map<T, R>(callbackFn: (value: T) => R): TransformStream<T, R> {
  * @param callbackFn
  * @returns
  */
-export function flatMap<T, R>(
-  callbackFn: (value: T) => ReadableStream<R>,
-): TransformStream<T, R> {
-  return toTransformStream<T, R>(
+export function flatMap<I, O>(
+  callbackFn: (value: I) => ReadableStream<O>,
+): TransformStream<I, O> {
+  return toTransformStream(
     async function* (stream) {
       for await (const value of stream) {
         yield* callbackFn(value);
@@ -216,7 +216,6 @@ export function switchMap<T, R>(
         closeStream();
       },
       abort(reason) {
-        console.debug('abort', reason);
         error = reason;
         closeStream();
       },
