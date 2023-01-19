@@ -1,6 +1,8 @@
 import { toTransformStream } from 'https://deno.land/std@0.171.0/streams/mod.ts';
 
-export const zeroCopyQueue = new CountQueuingStrategy({ highWaterMark: 0 });
+export const zeroCopyQueuingStrategy = new CountQueuingStrategy({
+  highWaterMark: 0,
+});
 
 /**
  * Filter out unwanted value.
@@ -50,14 +52,14 @@ export function filter<I, O extends I>(
  */
 
 export function map<I, O>(
-  callbackFn: (value: I) => O,
+  callbackFn: (value: I) => O | Promise<O>,
   writableStrategy?: QueuingStrategy<I>,
   readableStrategy?: QueuingStrategy<O>,
 ): TransformStream<I, O> {
   return toTransformStream<I, O>(
     async function* (stream) {
       for await (const value of stream) {
-        yield callbackFn(value);
+        yield await callbackFn(value);
       }
     },
     writableStrategy,
@@ -76,14 +78,14 @@ export function map<I, O>(
  * @returns
  */
 export function flatMap<I, O>(
-  callbackFn: (value: I) => ReadableStream<O>,
+  callbackFn: (value: I) => ReadableStream<O> | Promise<ReadableStream<O>>,
   writableStrategy?: QueuingStrategy<I>,
   readableStrategy?: QueuingStrategy<O>,
 ): TransformStream<I, O> {
   return toTransformStream(
     async function* (stream) {
       for await (const value of stream) {
-        yield* callbackFn(value);
+        yield* await callbackFn(value);
       }
     },
     writableStrategy,
@@ -104,7 +106,7 @@ export function flatMap<I, O>(
  * @returns
  */
 export function mergeMap<I, O>(
-  callbackFn: (value: I) => ReadableStream<O>,
+  callbackFn: (value: I) => ReadableStream<O> | Promise<ReadableStream<O>>,
   writableStrategy?: QueuingStrategy<I>,
   readableStrategy?: QueuingStrategy<O>,
 ): TransformStream<I, O> {
@@ -136,7 +138,7 @@ export function mergeMap<I, O>(
           (async () => {
             let subStream: ReadableStream<O> | null = null;
             try {
-              subStream = callbackFn(chunk);
+              subStream = await callbackFn(chunk);
               subStreamSet.add(subStream);
 
               for await (const value of subStream) {
@@ -187,7 +189,7 @@ export function mergeMap<I, O>(
  * @returns
  */
 export function switchMap<I, O>(
-  callbackFn: (value: I) => ReadableStream<O>,
+  callbackFn: (value: I) => ReadableStream<O> | Promise<ReadableStream<O>>,
   writableStrategy?: QueuingStrategy<I>,
   readableStrategy?: QueuingStrategy<O>,
 ): TransformStream<I, O> {
@@ -220,7 +222,7 @@ export function switchMap<I, O>(
             let subStream: ReadableStream<O> | null = null;
 
             try {
-              subStream = callbackFn(chunk);
+              subStream = await callbackFn(chunk);
               currentSubStream = subStream;
 
               const reader = subStream.getReader();
