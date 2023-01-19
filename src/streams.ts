@@ -1,26 +1,42 @@
 import { toTransformStream } from 'https://deno.land/std@0.171.0/streams/mod.ts';
 
-const zeroCopyQueue = new CountQueuingStrategy({ highWaterMark: 0 });
+export const zeroCopyQueue = new CountQueuingStrategy({ highWaterMark: 0 });
 
 /**
  * Filter out unwanted value.
  *
- * @param callbackFn
+ * @param predicate
+ * @param writableStrategy
+ * @param readableStrategy
  * @returns
  */
+export function filter<I, O extends I>(
+  predicate: (value: I) => value is O,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<O>,
+): TransformStream<I, O>;
+
 export function filter<I>(
-  callbackFn: (value: I) => boolean,
-): TransformStream<I, I> {
+  predicate: (value: I) => unknown,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<I>,
+): TransformStream<I, I>;
+
+export function filter<I, O extends I>(
+  predicate: (value: I) => unknown,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<O>,
+): TransformStream<I, O> {
   return toTransformStream(
     async function* (stream) {
       for await (const value of stream) {
-        if (callbackFn(value)) {
-          yield value;
+        if (predicate(value)) {
+          yield value as O;
         }
       }
     },
-    undefined,
-    zeroCopyQueue,
+    writableStrategy,
+    readableStrategy,
   );
 }
 
@@ -28,17 +44,24 @@ export function filter<I>(
  * Map main stream to new value.
  *
  * @param callbackFn
+ * @param writableStrategy
+ * @param readableStrategy
  * @returns
  */
-export function map<I, O>(callbackFn: (value: I) => O): TransformStream<I, O> {
+
+export function map<I, O>(
+  callbackFn: (value: I) => O,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<O>,
+): TransformStream<I, O> {
   return toTransformStream<I, O>(
     async function* (stream) {
       for await (const value of stream) {
         yield callbackFn(value);
       }
     },
-    undefined,
-    zeroCopyQueue,
+    writableStrategy,
+    readableStrategy,
   );
 }
 
@@ -48,10 +71,14 @@ export function map<I, O>(callbackFn: (value: I) => O): TransformStream<I, O> {
  * No data race occur.
  *
  * @param callbackFn
+ * @param writableStrategy
+ * @param readableStrategy
  * @returns
  */
 export function flatMap<I, O>(
   callbackFn: (value: I) => ReadableStream<O>,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<O>,
 ): TransformStream<I, O> {
   return toTransformStream(
     async function* (stream) {
@@ -59,8 +86,8 @@ export function flatMap<I, O>(
         yield* callbackFn(value);
       }
     },
-    undefined,
-    zeroCopyQueue,
+    writableStrategy,
+    readableStrategy,
   );
 }
 
@@ -72,13 +99,17 @@ export function flatMap<I, O>(
  * Data race may occur.
  *
  * @param callbackFn
+ * @param writableStrategy
+ * @param readableStrategy
  * @returns
  */
-export function mergeMap<T, R>(
-  callbackFn: (value: T) => ReadableStream<R>,
-): TransformStream<T, R> {
-  let readableController: ReadableStreamDefaultController<R>;
-  const subStreamSet = new Set<ReadableStream<R>>();
+export function mergeMap<I, O>(
+  callbackFn: (value: I) => ReadableStream<O>,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<O>,
+): TransformStream<I, O> {
+  let readableController: ReadableStreamDefaultController<O>;
+  const subStreamSet = new Set<ReadableStream<O>>();
   let closed = false;
   let error: unknown = null;
 
@@ -99,45 +130,48 @@ export function mergeMap<T, R>(
   };
 
   return {
-    writable: new WritableStream<T>({
-      write(chunk) {
-        (async () => {
-          let subStream: ReadableStream<R> | null = null;
-          try {
-            subStream = callbackFn(chunk);
-            subStreamSet.add(subStream);
+    writable: new WritableStream<I>(
+      {
+        write(chunk) {
+          (async () => {
+            let subStream: ReadableStream<O> | null = null;
+            try {
+              subStream = callbackFn(chunk);
+              subStreamSet.add(subStream);
 
-            for await (const value of subStream) {
-              readableController.enqueue(value);
-            }
-          } catch (err: unknown) {
-            console.error(err);
-          } finally {
-            if (subStream) {
-              subStreamSet.delete(subStream);
-            }
+              for await (const value of subStream) {
+                readableController.enqueue(value);
+              }
+            } catch (err: unknown) {
+              console.error(err);
+            } finally {
+              if (subStream) {
+                subStreamSet.delete(subStream);
+              }
 
-            if (closed && subStreamSet.size === 0) {
-              closeController();
+              if (closed && subStreamSet.size === 0) {
+                closeController();
+              }
             }
-          }
-        })();
+          })();
+        },
+        close() {
+          closeStream();
+        },
+        abort(reason) {
+          error = reason;
+          closeStream();
+        },
       },
-      close() {
-        closeStream();
-      },
-      abort(reason) {
-        error = reason;
-        closeStream();
-      },
-    }),
-    readable: new ReadableStream<R>(
+      writableStrategy,
+    ),
+    readable: new ReadableStream<O>(
       {
         start(controller) {
           readableController = controller;
         },
       },
-      zeroCopyQueue,
+      readableStrategy,
     ),
   };
 }
@@ -148,13 +182,17 @@ export function mergeMap<T, R>(
  * the new sub-stream will be created and the old sub-stream will be canceled.
  *
  * @param callbackFn
+ * @param writableStrategy
+ * @param readableStrategy
  * @returns
  */
-export function switchMap<T, R>(
-  callbackFn: (value: T) => ReadableStream<R>,
-): TransformStream<T, R> {
-  let readableController: ReadableStreamDefaultController<R>;
-  let currentSubStream: ReadableStream<R> | null = null;
+export function switchMap<I, O>(
+  callbackFn: (value: I) => ReadableStream<O>,
+  writableStrategy?: QueuingStrategy<I>,
+  readableStrategy?: QueuingStrategy<O>,
+): TransformStream<I, O> {
+  let readableController: ReadableStreamDefaultController<O>;
+  let currentSubStream: ReadableStream<O> | null = null;
   let closed = false;
   let error: unknown = null;
 
@@ -175,58 +213,61 @@ export function switchMap<T, R>(
   };
 
   return {
-    writable: new WritableStream<T>({
-      write(chunk) {
-        (async () => {
-          let subStream: ReadableStream<R> | null = null;
+    writable: new WritableStream<I>(
+      {
+        write(chunk) {
+          (async () => {
+            let subStream: ReadableStream<O> | null = null;
 
-          try {
-            subStream = callbackFn(chunk);
-            currentSubStream = subStream;
+            try {
+              subStream = callbackFn(chunk);
+              currentSubStream = subStream;
 
-            const reader = subStream.getReader();
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) {
-                break;
+              const reader = subStream.getReader();
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                  break;
+                }
+
+                if (subStream !== currentSubStream) {
+                  reader.releaseLock();
+                  subStream.cancel();
+                  break;
+                }
+
+                readableController.enqueue(value);
               }
+            } catch (err: unknown) {
+              console.error(err);
+            } finally {
+              if (currentSubStream === subStream) {
+                if (closed) {
+                  closeController();
+                }
 
-              if (subStream !== currentSubStream) {
-                reader.releaseLock();
-                subStream.cancel();
-                break;
+                currentSubStream = null;
               }
-
-              readableController.enqueue(value);
             }
-          } catch (err: unknown) {
-            console.error(err);
-          } finally {
-            if (currentSubStream === subStream) {
-              if (closed) {
-                closeController();
-              }
-
-              currentSubStream = null;
-            }
-          }
-        })();
+          })();
+        },
+        close() {
+          closeStream();
+        },
+        abort(reason) {
+          error = reason;
+          closeStream();
+        },
       },
-      close() {
-        closeStream();
-      },
-      abort(reason) {
-        error = reason;
-        closeStream();
-      },
-    }),
-    readable: new ReadableStream<R>(
+      writableStrategy,
+    ),
+    readable: new ReadableStream<O>(
       {
         start(controller) {
           readableController = controller;
         },
       },
-      zeroCopyQueue,
+      readableStrategy,
     ),
   };
 }
