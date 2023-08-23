@@ -1,4 +1,4 @@
-import { toTransformStream } from 'https://deno.land/std@0.171.0/streams/mod.ts';
+import { toTransformStream } from 'https://deno.land/std@0.186.0/streams/mod.ts';
 
 export const zeroCopyQueuingStrategy = new CountQueuingStrategy({
   highWaterMark: 0,

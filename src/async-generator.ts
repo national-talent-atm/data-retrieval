@@ -1,72 +1,107 @@
-function* gen01() {
-  console.debug('geneate:', 1);
-  yield 1;
-  console.debug('geneate:', 2);
-  yield 2;
-  console.debug('geneate:', 3);
-  yield 3;
+let label = '';
+
+function createTimeout<T>(value: T, ms: number) {
+  return (r: (value: T | PromiseLike<T>) => void) => {
+    console.timeLog(label, 'start solving:', value);
+    setTimeout(() => {
+      console.timeLog(label, 'internal-resolved:', value);
+      r(value);
+    }, ms);
+  };
 }
 
-//[...gen01()].map((value) => console.info('result:', value));
-
-for (const value of gen01()) {
-  console.info('result:', value);
+async function* gen01() {
+  yield await new Promise<number>(createTimeout(1, 1500));
+  yield await new Promise<number>(createTimeout(2, 1000));
+  yield await new Promise<number>(createTimeout(3, 500));
 }
 
-let dNumber!: number;
-let dString!: string;
-let dNumberOrString!: number | string;
+async function* gen02() {
+  yield new Promise<number>(createTimeout(1, 1500));
+  yield new Promise<number>(createTimeout(2, 1000));
+  yield new Promise<number>(createTimeout(3, 500));
+}
 
-const myTest01 = (x: number | string): number | string => {
-  return x;
-};
+function* gen03() {
+  yield new Promise<number>(createTimeout(1, 1500));
+  yield new Promise<number>(createTimeout(2, 1000));
+  yield new Promise<number>(createTimeout(3, 500));
+}
 
-const test01_01 = myTest01(dNumber);
-const test01_02 = myTest01(dString);
-const test01_03 = myTest01(dNumberOrString);
+label = 'run-gen01-promise';
+console.time(label);
+await(async () => {
+  const source = gen01();
 
-const myTest02 = <T extends number | string>(x: T): T => {
-  return x;
-};
+  return await Promise.all([
+    source.next().then((result) => console.timeLog(label, result)),
+    source.next().then((result) => console.timeLog(label, result)),
+    source.next().then((result) => console.timeLog(label, result)),
+  ]);
+})();
+console.timeEnd(label);
+console.log('-'.repeat(80));
 
-const test02_01 = myTest02(dNumber);
-const test02_02 = myTest02(dString);
-const test02_03 = myTest02(dNumberOrString);
+label = 'run-gen01-await';
+console.time(label);
+await(async () => {
+  const source = gen01();
 
-const myTest03 = (
-  x: number | string,
-): typeof x extends number | string
-  ? number | string
-  : typeof x extends number
-  ? number
-  : string => {
-  return x;
-};
+  console.timeLog(label, await source.next());
+  console.timeLog(label, await source.next());
+  console.timeLog(label, await source.next());
+})();
+console.timeEnd(label);
+console.log('-'.repeat(80));
 
-const test03_01 = myTest03(dNumber);
-const test03_02 = myTest03(dString);
-const test03_03 = myTest03(dNumberOrString);
+label = 'run-gen02-promise';
+console.time(label);
+await(() => {
+  const source = gen02();
 
-const myTest04 = <T extends number | string>(
-  x: T,
-): typeof x extends number | string
-  ? number | string
-  : typeof x extends number
-  ? number
-  : string => {
-  throw 'unimplemented';
-};
+  return Promise.all([
+    source.next().then((result) => console.timeLog(label, result)),
+    source.next().then((result) => console.timeLog(label, result)),
+    source.next().then((result) => console.timeLog(label, result)),
+  ]);
+})();
+console.timeEnd(label);
+console.log('-'.repeat(80));
 
-const test04_01 = myTest04(dNumber);
-const test04_02 = myTest04(dString);
-const test04_03 = myTest04(dNumberOrString);
+label = 'run-gen02-await';
+console.time(label);
+await(async () => {
+  const source = gen02();
 
-const myTest90 = <T extends number | string>(
-  x: T,
-): T extends number ? 'a' : 'b' => {
-  throw 'unimplmented';
-};
+  console.timeLog(label, await source.next());
+  console.timeLog(label, await source.next());
+  console.timeLog(label, await source.next());
+})();
+console.timeEnd(label);
+console.log('-'.repeat(80));
 
-const test90_01 = myTest90(dNumber);
-const test90_02 = myTest90(dString);
-const test90_03 = myTest90(dNumberOrString);
+label = 'run-gen03-promise';
+console.time(label);
+await(() => {
+  const source = gen03();
+
+  return Promise.all([
+    source.next().value?.then((result) => console.timeLog(label, result)),
+    source.next().value?.then((result) => console.timeLog(label, result)),
+    source.next().value?.then((result) => console.timeLog(label, result)),
+  ]);
+})();
+console.timeEnd(label);
+console.log('-'.repeat(80));
+
+label = 'run-gen03-await';
+console.time(label);
+await(async () => {
+  const source = gen03();
+
+  console.timeLog(label, await source.next().value);
+  console.timeLog(label, await source.next().value);
+  console.timeLog(label, await source.next().value);
+})();
+console.timeEnd(label);
+console.log('-'.repeat(80));
