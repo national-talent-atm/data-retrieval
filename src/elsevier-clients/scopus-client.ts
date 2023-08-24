@@ -1,5 +1,5 @@
 export const scopusAuthorUrl =
-  'https://api.elsevier.com/content/author/author_id/';
+  'https://api.elsevier.com/content/author/author_id/' as const;
 
 export type ScopusClientParamTuple = ConstructorParameters<typeof ScopusClient>;
 
@@ -19,6 +19,13 @@ export type ScopusAuthorOptions = {
   field?: string;
   alias?: boolean;
 };
+
+export type RateLimitNotify = (
+  limit: string | null,
+  remaining: string | null,
+  reset: string | null,
+  status: string | null,
+) => void;
 
 export class ScopusClient {
   private readonly nextInterval: number;
@@ -42,6 +49,7 @@ export class ScopusClient {
   private async fetch<T>(
     input: URL | Request | string,
     init: RequestInit = {},
+    rateLimitNotify?: RateLimitNotify,
   ): Promise<T> {
     await this.delay();
 
@@ -49,25 +57,55 @@ export class ScopusClient {
     headers.set('Accept', 'application/json');
     headers.set('X-ELS-APIKey', this.apiKey);
 
-    init.headers = headers;
+    const reqestInit = {
+      ...init,
+      headers: headers,
+    };
 
-    const res = await fetch(input, init);
+    const res = await fetch(input, reqestInit);
+
+    if (rateLimitNotify) {
+      const { headers } = res;
+
+      rateLimitNotify(
+        headers.get('X-RateLimit-Limit'),
+        headers.get('X-RateLimit-Remaining'),
+        headers.get('X-RateLimit-Reset'),
+        headers.get('X-ELS-Status'),
+      );
+    }
 
     if (!res.ok) {
-      throw new Error(res.statusText, { cause: await res.text() });
+      throw new Error(res.statusText, {
+        cause: await (async () => {
+          try {
+            return await res.json();
+          } catch {
+            return await res.text();
+          }
+        })(),
+      });
     }
 
     return (await res.json()) as T;
   }
 
-  async get<T>(url: URL): Promise<T> {
-    return await this.fetch<T>(url);
+  async get<T>(url: URL, rateLimitNotify?: RateLimitNotify): Promise<T> {
+    return await this.fetch<T>(url, {}, rateLimitNotify);
   }
 
-  async post<T>(url: URL, body: BodyInit): Promise<T> {
-    return await this.fetch<T>(url, {
-      method: 'POST',
-      body: body,
-    });
+  async post<T>(
+    url: URL,
+    body: BodyInit,
+    rateLimitNotify?: RateLimitNotify,
+  ): Promise<T> {
+    return await this.fetch<T>(
+      url,
+      {
+        method: 'POST',
+        body: body,
+      },
+      rateLimitNotify,
+    );
   }
 }

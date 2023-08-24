@@ -1,4 +1,7 @@
-import { ScopusClient } from '../elsevier-clients/scopus-client.ts';
+import {
+  RateLimitNotify,
+  ScopusClient,
+} from '../elsevier-clients/scopus-client.ts';
 import {
   ScopusSearchResponseBody,
   ScopusSearchResults,
@@ -28,14 +31,20 @@ export type ScopusSearchOptions = {
 export class ScopusSearchApi {
   constructor(private readonly client: ScopusClient) {}
 
-  async search(options: ScopusSearchOptions): Promise<ScopusSearchResults> {
+  async search(
+    options: ScopusSearchOptions,
+    rateLimitNotify?: RateLimitNotify,
+  ): Promise<ScopusSearchResults> {
     const url = new URL('', scopusSearchUrl);
 
     for (const [key, value] of Object.entries(options)) {
       url.searchParams.set(key, `${value}`);
     }
 
-    const body = await this.client.get<ScopusSearchResponseBody>(url);
+    const body = await this.client.get<ScopusSearchResponseBody>(
+      url,
+      rateLimitNotify,
+    );
 
     return body['search-results'];
   }

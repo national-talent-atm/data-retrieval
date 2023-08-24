@@ -1,17 +1,16 @@
 import {
-  readableStreamFromIterable,
   readableStreamFromReader,
   TextLineStream,
-} from 'https://deno.land/std@0.186.0/streams/mod.ts';
-// @deno-types="https://deno.land/x/sheetjs@v0.18.3/types/index.d.ts"
-import {
-  utils as xlsxUtils,
-  write as xlsxWrite,
-} from 'https://deno.land/x/sheetjs@v0.18.3/xlsx.mjs';
+} from 'https://deno.land/std@0.199.0/streams/mod.ts';
+import { stringify } from 'https://deno.land/std@0.199.0/csv/mod.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
 import { filter, flatMap, map } from './streams.ts';
 import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
 import { ScopusSearchResults } from './elsevier-types/scopus-search-types.ts';
+
+const getFileName = (fileId: string) => {
+  return `au-id-${fileId}.json` as const;
+};
 
 const apiKey = Deno.env.get('ELSEVIER_KEY');
 
@@ -26,8 +25,17 @@ const configName = 'au-0001-8236';
 const limit = 15;
 const sortedBy = 'coverDate,-title';
 
-const inputFile = `./target/${configName}.txt`;
-const outputDir = `./target/output/${configName}`;
+const inputFile = `./target/${configName}.txt` as const;
+const outputDir = `./target/output/${configName}` as const;
+const catchDir = outputDir;
+
+const getCache = (fileId: string) => {
+  return `${catchDir}/${getFileName(`${fileId}`)}` as const;
+};
+
+const getOuput = (fileId: string) => {
+  return `${outputDir}/${getFileName(`${fileId}`)}` as const;
+};
 
 await Deno.mkdir(outputDir, { recursive: true });
 
@@ -47,41 +55,69 @@ const [stream1, stream2] = readableStreamFromReader(
     map(async ([id, name, ind]) => {
       const index = `${count++}`.padStart(5, ' ');
       console.info(`start [${index}]:`, id, name, ind);
-      console.info('\tloading');
       // const query = `AU-ID(${id}) AND FIRSTAUTH(${name})`;
       const query = `AU-ID(${id})`;
+      console.info(`\t[${index}] loading: ${query}`);
       try {
         if (id === '') {
           throw new Error(`The scopus-id for "${name}" is empty`);
         }
 
-        const searchResults = await searchApi.search({
-          query: query,
-          view: 'COMPLETE',
-          sort: sortedBy,
-          count: limit,
-        });
+        let isCached = true;
+
+        const searchResults = await (async () => {
+          try {
+            return JSON.parse(
+              await Deno.readTextFile(getCache(id)),
+            ) as ScopusSearchResults;
+          } catch {
+            isCached = false;
+            return await searchApi.search(
+              {
+                query: query,
+                view: 'COMPLETE',
+                sort: sortedBy,
+                count: limit,
+              },
+              (limit, remaining, reset, status) =>
+                console.info(
+                  `\t[${index}] rateLimit: ${remaining?.padStart(
+                    5,
+                    ' ',
+                  )}/${limit} reset: ${reset} [${status}]`,
+                ),
+            );
+          }
+        })();
 
         console.info(
-          '\tloaded',
+          `\t[${index}] loaded`,
           `${searchResults['entry'].length}/${searchResults['opensearch:totalResults']}`,
         );
-        return { id, name, ind, searchResults };
+        return { index, id, name, ind, isCached, searchResults };
       } catch (err: unknown) {
-        console.error(`\terror`, err);
+        console.error(`\t[${index}] error`, err);
         return {
+          index,
           id,
           name,
           ind,
-          searchResults: new Error(
-            err instanceof Error ? err.message : `${err}`,
-            {
-              cause: {
-                query: query,
-                origin: err,
-              },
-            },
-          ),
+          isCached: false,
+          searchResults:
+            err instanceof Error
+              ? new Error(err.message, {
+                  cause: {
+                    query: query,
+                    error: err.cause,
+                    origin: err,
+                  },
+                })
+              : new Error(`${err}`, {
+                  cause: {
+                    query: query,
+                    origin: err,
+                  },
+                }),
         };
       }
     }),
@@ -99,17 +135,24 @@ const flatStream = stream2
     ),
   )
   .pipeThrough(
-    flatMap(({ id, name, ind, searchResults }) =>
-      readableStreamFromIterable(
-        searchResults['entry'].map((entry) => ({ id, name, ind, entry })),
+    flatMap(({ index, id, name, ind, searchResults }) =>
+      ReadableStream.from(
+        searchResults['entry'].map((entry) => ({
+          index,
+          id,
+          name,
+          ind,
+          entry,
+        })),
       ),
     ),
   )
   .pipeThrough(
-    map(({ id, name, ind, entry }) => {
+    map(({ index, id, name, ind, entry }) => {
       const author = entry['author']?.find((author) => author['authid'] === id);
 
       return {
+        index: index,
         'au-id': id,
         'au-data-name': name,
         ind: ind,
@@ -132,7 +175,12 @@ const flatStream = stream2
 await Promise.all([
   stream1.pipeTo(
     new WritableStream({
-      async write({ id, name, searchResults }) {
+      async write({ index, id, name, isCached, searchResults }) {
+        if (isCached && getCache(id) === getOuput(id)) {
+          console.info(`\t[${index}] done: cached`);
+          return;
+        }
+
         const isError = searchResults instanceof Error;
         const encoder = new TextEncoder();
         const dataArray = encoder.encode(
@@ -149,43 +197,47 @@ await Promise.all([
           ),
         );
 
-        console.info('\twriting to file');
-        const suffix = isError
-          ? `-${Math.floor(Math.random() * 10000)}-error`
-          : '';
-        const fpOut = await Deno.open(
-          `${outputDir}/au-id-${isError ? name : id}${suffix}.json`,
-          {
-            create: true,
-            write: true,
-          },
-        );
+        console.info(`\t[${index}] writing to file`);
+        const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
+        const fileId = id === '' ? `${indexPrefix}-${name}` : id;
+        const prefix = isError ? `error-${indexPrefix}-` : '';
+        const fpOut = await Deno.open(getOuput(`${prefix}${fileId}`), {
+          create: true,
+          write: true,
+        });
         await fpOut.write(dataArray);
         fpOut.close();
-        console.info('\tdone');
+        console.info(`\t[${index}] done`);
       },
     }),
   ),
   (async () => {
-    const results: unknown[] = [];
-
-    await flatStream.pipeTo(
-      new WritableStream({
-        write(entry) {
-          results.push(entry);
-        },
-      }),
-    );
-
-    const fp = await Deno.open(`${outputDir}/result.xlsx`, {
+    const fp = await Deno.open(`${outputDir}/result.csv`, {
       create: true,
       write: true,
       truncate: true,
     });
 
-    const wb = xlsxUtils.book_new();
-    xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet(results));
-    const buff = xlsxWrite(wb, { type: 'array', bookType: 'xlsx' });
-    await fp.write(buff);
+    let columns: string[] | null = null;
+
+    await flatStream
+      .pipeThrough(
+        flatMap((entry) => {
+          if (columns === null) {
+            columns = Object.keys(entry);
+
+            return ReadableStream.from([
+              stringify([columns], { headers: false }),
+              stringify([entry], { headers: false, columns }),
+            ]);
+          }
+
+          return ReadableStream.from([
+            stringify([entry], { headers: false, columns }),
+          ]);
+        }),
+      )
+      .pipeThrough(new TextEncoderStream())
+      .pipeTo(fp.writable);
   })(),
 ]);
