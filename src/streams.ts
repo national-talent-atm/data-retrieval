@@ -1,4 +1,5 @@
 import { toTransformStream } from 'https://deno.land/std@0.199.0/streams/mod.ts';
+import { ReadableStreamTuple } from './utility-types.ts';
 
 export const zeroCopyQueuingStrategy = new CountQueuingStrategy({
   highWaterMark: 0,
@@ -52,14 +53,15 @@ export function filter<I, O extends I>(
  */
 
 export function map<I, O>(
-  callbackFn: (value: I) => O | Promise<O>,
+  callbackFn: (value: I, index: number) => O | Promise<O>,
   writableStrategy?: QueuingStrategy<I>,
   readableStrategy?: QueuingStrategy<O>,
 ): TransformStream<I, O> {
   return toTransformStream<I, O>(
     async function* (stream) {
+      let index = 0;
       for await (const value of stream) {
-        yield await callbackFn(value);
+        yield await callbackFn(value, index++);
       }
     },
     writableStrategy,
@@ -272,4 +274,66 @@ export function switchMap<I, O>(
       readableStrategy,
     ),
   };
+}
+
+export function tupleZipReadableStreams<T extends [unknown, ...unknown[]]>(
+  ...streams: ReadableStreamTuple<T>
+): ReadableStream<T> {
+  const readers = streams.map((s) => s.getReader());
+  return new ReadableStream<T>({
+    async start(controller) {
+      try {
+        loop: while (true) {
+          const results: unknown[] = [];
+          for (const reader of readers) {
+            const { value, done } = await reader.read();
+            if (!done) {
+              results.push(value);
+            } else {
+              await Promise.all(readers.map((reader) => reader.cancel()));
+              break loop;
+            }
+          }
+          controller.enqueue(results as T);
+        }
+        controller.close();
+      } catch (e) {
+        controller.error(e);
+      }
+    },
+  });
+}
+
+export function toStream<T>(
+  promise: Promise<ReadableStream<T>>,
+): Awaited<typeof promise> {
+  return new ReadableStream({
+    async start(controller) {
+      const stream = await promise;
+      await stream.pipeTo(
+        new WritableStream({
+          write(value) {
+            controller.enqueue(value);
+          },
+        }),
+      );
+      controller.close();
+    },
+  });
+}
+
+export async function toArray<T>(
+  readableStream: ReadableStream<T>,
+): Promise<T[]> {
+  const results: T[] = [];
+
+  await readableStream.pipeTo(
+    new WritableStream<T>({
+      write(entry) {
+        results.push(entry);
+      },
+    }),
+  );
+
+  return results;
 }

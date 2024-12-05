@@ -65,3 +65,16 @@ export type ScopusSubjectAreaAbbrev =
   | 'SOCI' // Social Sciences
   | 'VETE' // Veterinary
   | 'MULT'; // Multidisciplinary
+
+export type ScopusSearchResults<T> = {
+  'opensearch:totalResults': string;
+  'opensearch:startIndex': string;
+  'opensearch:itemsPerPage': string;
+  'opensearch:Query': ScopusType<'@role' | '@searchTerms' | '@startPage'>;
+  link: ScopusLink[];
+  entry: T[];
+};
+
+export type ScopusSearchResponseBody<T> = {
+  'search-results': ScopusSearchResults<T>;
+};

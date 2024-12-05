@@ -1,12 +1,12 @@
 import { TextLineStream } from 'https://deno.land/std@0.208.0/streams/mod.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
 import { filter, map } from './streams.ts';
-import { ScopusAuthorRetrievalApi } from './elsevier-apis/scopus-author-retrieval-api.ts';
-import { ScopusAuthorResponseBody } from './elsevier-types/scopus-author-types.ts';
 import { readerToAsyncIterable } from './utils.ts';
+import { SciValAuthorApi } from './sci-val-apis/sci-val-author.ts';
+import { AuthorMetricsResponseBody } from './elsevier-types/sci-val-author-types.ts';
 
 const getFileName = (fileId: string) => {
-  return `au-id-${fileId}.json` as const;
+  return `metrics-au-id-${fileId}.json` as const;
 };
 
 const apiKey = Deno.env.get('ELSEVIER_KEY');
@@ -37,7 +37,7 @@ const getOuput = (fileId: string) => {
 await Deno.mkdir(outputDir, { recursive: true });
 
 const client = new ScopusClient(apiKeys, 10);
-const authorRetrievalApi = new ScopusAuthorRetrievalApi(client);
+const authorApi = new SciValAuthorApi(client);
 
 let count = 1;
 
@@ -67,21 +67,37 @@ const stream = ReadableStream.from(
           try {
             return JSON.parse(
               await Deno.readTextFile(getCache(id)),
-            ) as ScopusAuthorResponseBody;
+            ) as AuthorMetricsResponseBody;
           } catch {
             isCached = false;
-            return await authorRetrievalApi.authorId(
-              id,
+            return await authorApi.metrics(
+              [id],
+              [
+                'AcademicCorporateCollaboration',
+                'AcademicCorporateCollaborationImpact',
+                'Collaboration',
+                'CitationCount',
+                'CitationsPerPublication',
+                'CollaborationImpact',
+                'CitedPublications',
+                'FieldWeightedCitationImpact',
+                'HIndices',
+                'ScholarlyOutput',
+                'PublicationsInTopJournalPercentiles',
+                'OutputsInTopCitationPercentiles',
+              ],
               {
-                view: 'ENHANCED',
+                queries: {
+                  byYear: false,
+                },
+                rateLimitNotify: (limit, remaining, reset, status) =>
+                  console.info(
+                    `\t[${index}] rateLimit: ${remaining?.padStart(
+                      5,
+                      ' ',
+                    )}/${limit} reset: ${reset} [${status}]`,
+                  ),
               },
-              (limit, remaining, reset, status) =>
-                console.info(
-                  `\t[${index}] rateLimit: ${remaining?.padStart(
-                    5,
-                    ' ',
-                  )}/${limit} reset: ${reset} [${status}]`,
-                ),
             );
           }
         })();

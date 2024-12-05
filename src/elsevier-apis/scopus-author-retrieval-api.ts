@@ -1,8 +1,8 @@
-import { ScopusClient } from '../elsevier-clients/scopus-client.ts';
 import {
-  ScopusAuthorResponse,
-  ScopusAuthorResponseBody,
-} from '../elsevier-types/scopus-author-types.ts';
+  RateLimitNotify,
+  ScopusClient,
+} from '../elsevier-clients/scopus-client.ts';
+import { ScopusAuthorResponseBody } from '../elsevier-types/scopus-author-types.ts';
 
 export const scopusAuthorIdUrl =
   'https://api.elsevier.com/content/author/author_id/';
@@ -30,7 +30,8 @@ export class ScopusAuthorRetrievalApi {
   async authorId(
     authorId: string,
     options?: ScopusAuthorIdOptions,
-  ): Promise<ScopusAuthorResponse> {
+    rateLimitNotify?: RateLimitNotify,
+  ): Promise<ScopusAuthorResponseBody> {
     const url = new URL(authorId, scopusAuthorIdUrl);
 
     if (options) {
@@ -39,8 +40,9 @@ export class ScopusAuthorRetrievalApi {
       }
     }
 
-    const body = await this.client.get<ScopusAuthorResponseBody>(url);
-
-    return body['author-retrieval-response'];
+    return await this.client.get<ScopusAuthorResponseBody>(
+      url,
+      rateLimitNotify,
+    );
   }
 }

@@ -54,16 +54,3 @@ export type ScopusSearchEntry = ScopusType<'@_fa'> & {
   freetoread: { value: ScopusSearchValue[] };
   freetoreadLabel: { value: ScopusSearchValue[] };
 };
-
-export type ScopusSearchResults = {
-  'opensearch:totalResults': string;
-  'opensearch:startIndex': string;
-  'opensearch:itemsPerPage': string;
-  'opensearch:Query': ScopusType<'@role' | '@searchTerms' | '@startPage'>;
-  link: ScopusLink[];
-  entry: ScopusSearchEntry[];
-};
-
-export type ScopusSearchResponseBody = {
-  'search-results': ScopusSearchResults;
-};

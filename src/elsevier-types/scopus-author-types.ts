@@ -86,5 +86,5 @@ export type ScopusAuthorResponse = {
 };
 
 export type ScopusAuthorResponseBody = {
-  'author-retrieval-response': ScopusAuthorResponse;
+  'author-retrieval-response': ScopusAuthorResponse[];
 };

@@ -1,13 +1,15 @@
-import { TextLineStream } from 'https://deno.land/std@0.211.0/streams/mod.ts';
-import { stringify } from 'https://deno.land/std@0.211.0/csv/mod.ts';
+import { TextLineStream } from 'https://deno.land/std@0.211.0/streams/text_line_stream.ts';
+import { stringify } from 'https://deno.land/std@0.211.0/csv/stringify.ts';
+import { ScopusAuthorSearchApi } from './elsevier-apis/scopus-author-search-api.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
+import { readerToAsyncIterable } from './utils.ts';
 import { filter, flatMap, map } from './streams.ts';
-import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
 import { ScopusSearchResponseBody } from './elsevier-types/scopus-types.ts';
-import { ScopusSearchEntry } from './elsevier-types/scopus-search-types.ts';
+import { ScopusAuthorSearchEntry } from './elsevier-types/scopus-author-search-types.ts';
 
-const getFileName = (fileId: string) => {
-  return `scopus-search-au-id-${fileId}.json` as const;
+const getFileName = (name: string) => {
+  const fileId = name.replaceAll(' ', '_');
+  return `full-name-${fileId}.json` as const;
 };
 
 const apiKey = Deno.env.get('ELSEVIER_KEY');
@@ -21,29 +23,29 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'yount-talent-with-id-20240110';
-const limit = 15;
-const sortedBy = 'coverDate,-title';
+const configName = 'top-002-percent-20240924';
 
 const inputFile = `./target/${configName}.txt` as const;
 const outputDir = `./target/output/${configName}` as const;
 const catchDir = outputDir;
-const resultFile = `${outputDir}/${configName}-scopus-search-result.csv`;
+const resultFile = `${outputDir}/${configName}-result.csv`;
 
-const getCache = (fileId: string) => {
-  return `${catchDir}/${getFileName(`${fileId}`)}` as const;
+const getCache = (name: string) => {
+  return `${catchDir}/${getFileName(name)}` as const;
 };
 
-const getOuput = (fileId: string) => {
-  return `${outputDir}/${getFileName(`${fileId}`)}` as const;
+const getOuput = (name: string) => {
+  return `${outputDir}/${getFileName(name)}` as const;
 };
 
 await Deno.mkdir(outputDir, { recursive: true });
 
 const client = new ScopusClient(apiKeys, 10);
-const scopusSearchApi = new ScopusSearchApi(client);
+const authorSearchApi = new ScopusAuthorSearchApi(client);
 
-const inputStream = (await Deno.open(inputFile, { read: true })).readable
+const inputStream = ReadableStream.from(
+  readerToAsyncIterable(await Deno.open(inputFile, { read: true })),
+)
   .pipeThrough(new TextDecoderStream())
   .pipeThrough(new TextLineStream())
   .pipeThrough(map((value) => value.trim()))
@@ -53,25 +55,27 @@ const inputStream = (await Deno.open(inputFile, { read: true })).readable
       let count = 1;
 
       return map((value) => {
-        const [id, name, ind] = value.split('\t').map((term) => term.trim());
+        const [firstName, lastName] = value
+          .split('\t')
+          .map((term) => term.trim());
 
         const index = `${count++}`.padStart(5, ' ');
-        console.info(`start [${index}]:`, id, name, ind);
+        const name = `${firstName} ${lastName}`;
+        console.info(`start [${index}]:`, firstName, lastName);
 
-        return { id, name, ind, index };
+        return { firstName, lastName, name, index };
       });
     })(),
   );
 
-const dataStream = inputStream.pipeThrough(
-  map(async ({ id, name, ind, index }) => {
-    console.info(`start [${index}]:`, id, name, ind);
-    // const query = `AU-ID(${id}) AND FIRSTAUTH(${name})`;
-    const query = `AU-ID(${id})`;
-    console.info(`\t[${index}] loading: ${query}`);
+const authorStream = inputStream.pipeThrough(
+  map(async ({ firstName, lastName, name, index }) => {
+    const query = `AUTHFIRST(${firstName}) AND AUTHLASTNAME(${lastName})`;
+    console.info(`\t[${index}] loading author: ${query}`);
+
     try {
-      if (id === '') {
-        throw new Error(`The scopus-id for "${name}" is empty`);
+      if (name === '') {
+        throw new Error(`The name is empty`);
       }
 
       let isCached = true;
@@ -79,16 +83,14 @@ const dataStream = inputStream.pipeThrough(
       const body = await (async () => {
         try {
           return JSON.parse(
-            await Deno.readTextFile(getCache(id)),
-          ) as ScopusSearchResponseBody<ScopusSearchEntry>;
+            await Deno.readTextFile(getCache(name)),
+          ) as ScopusSearchResponseBody<ScopusAuthorSearchEntry>;
         } catch {
           isCached = false;
-          return await scopusSearchApi.search(
+          return await authorSearchApi.search(
             {
-              query: query,
-              view: 'COMPLETE',
-              sort: sortedBy,
-              count: limit,
+              query,
+              view: 'STANDARD',
             },
             (limit, remaining, reset, status) =>
               console.info(
@@ -101,18 +103,23 @@ const dataStream = inputStream.pipeThrough(
         }
       })();
 
-      console.info(
-        `\t[${index}] loaded`,
-        `${body['search-results']['entry'].length}/${body['search-results']['opensearch:totalResults']}`,
-      );
-      return { index, id, name, ind, isCached, body, type: 'result' as const };
-    } catch (err: unknown) {
+      console.info(`\t[${index}] loaded`);
+      return {
+        index,
+        firstName,
+        lastName,
+        name,
+        isCached,
+        body,
+        type: 'result' as const,
+      };
+    } catch (err) {
       console.error(`\t[${index}] error`, err);
       return {
         index,
-        id,
+        firstName,
+        lastName,
         name,
-        ind,
         isCached: false,
         body:
           err instanceof Error
@@ -135,12 +142,12 @@ const dataStream = inputStream.pipeThrough(
   }),
 );
 
-const [preScopusSearchStream, cachingDataStream] = dataStream.tee();
+const [cachingAuthorStream, preResultsAuthorStream] = authorStream.tee();
 
-const cachingDataPromise = cachingDataStream.pipeTo(
+const cachingAuthorPromise = cachingAuthorStream.pipeTo(
   new WritableStream({
-    async write({ index, id, name, isCached, body }) {
-      if (isCached && getCache(id) === getOuput(id)) {
+    async write({ index, name, isCached, body }) {
+      if (isCached && getCache(name) === getOuput(name)) {
         console.info(`\t[${index}] done: cached`);
         return;
       }
@@ -163,7 +170,7 @@ const cachingDataPromise = cachingDataStream.pipeTo(
 
       console.info(`\t[${index}] writing to file`);
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
-      const fileId = id === '' ? `${indexPrefix}-${name}` : id;
+      const fileId = name === '' ? `${indexPrefix}` : name;
       const prefix = isError ? `error-${indexPrefix}-` : '';
       const fpOut = await Deno.open(getOuput(`${prefix}${fileId}`), {
         create: true,
@@ -176,52 +183,37 @@ const cachingDataPromise = cachingDataStream.pipeTo(
   }),
 );
 
-const scopusSearchStream = preScopusSearchStream
+const resultsAuthorStream = preResultsAuthorStream
   .pipeThrough(
-    filter(
-      (data): data is Exclude<typeof data, { type: 'error' }> =>
-        data.type !== 'error',
-    ),
+    filter((result): result is Exclude<typeof result, { type: 'error' }> => {
+      return (
+        result.type !== 'error' &&
+        +result.body['search-results']['opensearch:totalResults'] > 0
+      );
+    }),
   )
   .pipeThrough(
-    flatMap(({ index, id, name, ind, body }) =>
+    flatMap(({ index, firstName, lastName, body }) =>
       ReadableStream.from(
-        body['search-results']['entry'].map((entry) => ({
-          index,
-          id,
-          name,
-          ind,
-          entry,
-        })),
+        body['search-results']['entry'].map((result) => {
+          const id = result['dc:identifier'].split(':')[1];
+          const preferredName = result['preferred-name'];
+
+          return {
+            id,
+            firstName,
+            lastName,
+            index,
+            surname: preferredName['surname'],
+            'given-name': preferredName['given-name'],
+            initials: preferredName['initials'],
+          };
+        }),
       ),
     ),
-  )
-  .pipeThrough(
-    map(({ index, id, name, ind, entry }) => {
-      const author = entry['author']?.find((author) => author['authid'] === id);
-
-      return {
-        index: index,
-        'au-id': id,
-        'au-data-name': name,
-        ind: ind,
-        'au-authname': author?.['authname'],
-        'au-given-name': author?.['given-name'],
-        'au-surname': author?.['surname'],
-        'dc:title': entry['dc:title'],
-        'first-au-id': entry['author']?.[0]?.['authid'],
-        'prism:coverDate': entry['prism:coverDate'],
-        'prism:publicationName': entry['prism:publicationName'],
-        'prism:volume': entry['prism:volume'],
-        'fund-no': entry['fund-no'],
-        'fund-acr': entry['fund-acr'],
-        'fund-sponsor': entry['fund-sponsor'],
-        'dc:description': entry['dc:description'],
-      };
-    }),
   );
 
-const scopusSearchPromise = (async () => {
+const resultsAuthorPromise = (async () => {
   const fp = await Deno.open(resultFile, {
     create: true,
     write: true,
@@ -230,7 +222,7 @@ const scopusSearchPromise = (async () => {
 
   let columns: string[] | null = null;
 
-  return await scopusSearchStream
+  await resultsAuthorStream
     .pipeThrough(
       flatMap((entry) => {
         if (columns === null) {
@@ -251,4 +243,4 @@ const scopusSearchPromise = (async () => {
     .pipeTo(fp.writable);
 })();
 
-await Promise.all([cachingDataPromise, scopusSearchPromise]);
+await Promise.all([cachingAuthorPromise, resultsAuthorPromise]);

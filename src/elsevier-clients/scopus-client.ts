@@ -1,6 +1,3 @@
-export const scopusAuthorUrl =
-  'https://api.elsevier.com/content/author/author_id/' as const;
-
 export type ScopusClientParamTuple = ConstructorParameters<typeof ScopusClient>;
 
 export type ScopusAuthorView =
@@ -31,7 +28,11 @@ export class ScopusClient {
   private readonly nextInterval: number;
   private nextFetchTime = Date.now();
 
-  constructor(private readonly apiKey: string, rateLimit: number) {
+  constructor(
+    private readonly apiKeys: string[],
+    rateLimit: number,
+    private maxRetry = 3,
+  ) {
     this.nextInterval = Math.ceil(1000 / rateLimit);
   }
 
@@ -46,6 +47,8 @@ export class ScopusClient {
     });
   }
 
+  private index = 0;
+
   private async fetch<T>(
     input: URL | Request | string,
     init: RequestInit = {},
@@ -55,39 +58,50 @@ export class ScopusClient {
 
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
-    headers.set('X-ELS-APIKey', this.apiKey);
+    headers.set(
+      'X-ELS-APIKey',
+      this.apiKeys[this.index++ % this.apiKeys.length],
+    );
 
     const reqestInit = {
       ...init,
       headers: headers,
     };
 
-    const res = await fetch(input, reqestInit);
+    let error: Error | null = null;
 
-    if (rateLimitNotify) {
-      const { headers } = res;
+    for (let retry = 0; retry < this.maxRetry; retry++) {
+      const res = await fetch(input, reqestInit);
 
-      rateLimitNotify(
-        headers.get('X-RateLimit-Limit'),
-        headers.get('X-RateLimit-Remaining'),
-        headers.get('X-RateLimit-Reset'),
-        headers.get('X-ELS-Status'),
-      );
+      if (rateLimitNotify) {
+        const { headers } = res;
+
+        rateLimitNotify(
+          headers.get('X-RateLimit-Limit'),
+          headers.get('X-RateLimit-Remaining'),
+          headers.get('X-RateLimit-Reset'),
+          headers.get('X-ELS-Status'),
+        );
+      }
+
+      if (!res.ok) {
+        const errorMessage = await res.text();
+        error = new Error(res.statusText, {
+          cause: await (async () => {
+            try {
+              return await res.json();
+            } catch {
+              return errorMessage;
+            }
+          })(),
+        });
+        console.error(`Trial [${retry + 1}]: ${errorMessage}`);
+      } else {
+        return (await res.json()) as T;
+      }
     }
 
-    if (!res.ok) {
-      throw new Error(res.statusText, {
-        cause: await (async () => {
-          try {
-            return await res.json();
-          } catch {
-            return await res.text();
-          }
-        })(),
-      });
-    }
-
-    return (await res.json()) as T;
+    throw error;
   }
 
   async get<T>(url: URL, rateLimitNotify?: RateLimitNotify): Promise<T> {
