@@ -1,4 +1,4 @@
-import { toTransformStream } from 'https://deno.land/std@0.199.0/streams/mod.ts';
+import { toTransformStream } from 'jsr:@std/streams';
 import { ReadableStreamTuple } from './utility-types.ts';
 
 export const zeroCopyQueuingStrategy = new CountQueuingStrategy({

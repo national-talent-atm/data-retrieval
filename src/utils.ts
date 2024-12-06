@@ -10,7 +10,7 @@ export function isCloser(value: unknown): value is { close: () => void } {
 }
 
 export async function* readerToAsyncIterable(
-  reader: Deno.Reader,
+  reader: Deno.FsFile,
   chunkSize = 16_640,
 ) {
   const chunk = new Uint8Array(chunkSize);
@@ -26,4 +26,33 @@ export async function* readerToAsyncIterable(
   if (isCloser(reader)) {
     reader.close();
   }
+}
+
+export function unwrapPromiseReadableStream<T>(
+  sourcePromise: Promise<ReadableStream<T>>,
+): ReadableStream<T> {
+  let sourceStream: ReadableStream<T> | null = null;
+
+  return new ReadableStream({
+    async start(controller) {
+      sourceStream = await sourcePromise;
+      const reader = sourceStream.getReader();
+
+      for (
+        let { done, value } = await reader.read();
+        !done;
+        { done, value } = await reader.read()
+      ) {
+        controller.enqueue(value);
+      }
+
+      controller.close();
+    },
+
+    cancel(reason) {
+      if (sourceStream !== null) {
+        sourceStream.cancel(reason);
+      }
+    },
+  });
 }

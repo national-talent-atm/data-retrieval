@@ -12,5 +12,6 @@
   "deno.inlayHints.parameterTypes.enabled": false,
   "deno.inlayHints.parameterNames.suppressWhenArgumentMatchesName": false,
   "deno.inlayHints.variableTypes.enabled": false,
-  "deno.inlayHints.variableTypes.suppressWhenTypeMatchesName": false
+  "deno.inlayHints.variableTypes.suppressWhenTypeMatchesName": false,
+  "editor.formatOnSave": true
 }
