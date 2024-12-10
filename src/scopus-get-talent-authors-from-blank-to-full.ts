@@ -1,10 +1,10 @@
 /**
  * For importing the new data.
- * Get all new data from Elsevier and copy some input data to output.
+ * Get all new data from Elsevier.
  */
 
-import { stringify } from 'https://deno.land/std@0.210.0/csv/mod.ts';
-import { TextLineStream } from 'https://deno.land/std@0.210.0/streams/mod.ts';
+import { stringify } from 'jsr:@std/csv';
+import { TextLineStream } from 'jsr:@std/streams';
 import { ScopusAuthorRetrievalApi } from './elsevier-apis/scopus-author-retrieval-api.ts';
 import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
@@ -49,7 +49,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'top-002-percent-data-20240924';
+const configName = 'top200-02-mahidol-university-biochem-with-id-20241205';
 const sortedBy = 'coverDate,-title';
 
 const inputFile = `./target/${configName}.txt` as const;
@@ -557,26 +557,29 @@ const combinedStream = tupleZipReadableStreams(
         throw 'ID miss match';
       }
 
-      const [givenName, surname] = authorBody.rest;
+      const [givenName, surname, _, nPub, searchingSubjectArea] =
+        authorBody.rest;
 
       const authorResult = authorBody.body['author-retrieval-response'][0];
       const metrics = metricsBody.body.results[0].metrics;
       const scopusSearchResults = scopusSearchBody.body['search-results'].entry;
 
-      const asjcCode =
-        ((classifications) =>
-          classifications['@type'] === 'ASJC'
-            ? classifications['classification']
-            : [])(
-          authorResult['author-profile']['classificationgroup'][
-            'classifications'
-          ],
-        ).sort((pre, next) => {
-          const feqPre = +pre['@frequency'];
-          const feqNext = +next['@frequency'];
+      const asjcSorted = ((classifications) =>
+        classifications['@type'] === 'ASJC'
+          ? classifications['classification']
+          : [])(
+        authorResult['author-profile']['classificationgroup'][
+          'classifications'
+        ],
+      ).sort((pre, next) => {
+        const feqPre = +pre['@frequency'];
+        const feqNext = +next['@frequency'];
 
-          return feqPre > feqNext ? -1 : feqPre < feqNext ? 1 : 0;
-        })[0]?.$ ?? '0000';
+        return feqPre > feqNext ? -1 : feqPre < feqNext ? 1 : 0;
+      });
+
+      const asjcCode = asjcSorted[0]?.$ ?? '0000';
+      const asjcFeq = asjcSorted[0]?.['@frequency'] ?? 'Unknown';
 
       const asjcData = asjcMap.get(asjcCode) ?? {
         'subject-area': 'Unknown',
@@ -632,6 +635,10 @@ const combinedStream = tupleZipReadableStreams(
         'given-name': givenName,
         surname,
         name: authorBody.name,
+        'number-of-publications': nPub,
+        'searching-subject-area': searchingSubjectArea,
+        asjc: asjcCode,
+        'asjc-frequency': asjcFeq,
         ...asjcData,
         keyword1: sortedKeywordEntries[0]?.[0],
         keyword2: sortedKeywordEntries[1]?.[0],
@@ -653,15 +660,25 @@ const combinedStream = tupleZipReadableStreams(
 
         no_of_coauthor: authorResult['coauthor-count'],
         co_author1: extractName(sortedCoauthorEntries[0]?.[1]?.author),
+        co_author1_id: sortedCoauthorEntries[0]?.[1]?.author?.authid,
         co_author2: extractName(sortedCoauthorEntries[1]?.[1]?.author),
+        co_author2_id: sortedCoauthorEntries[1]?.[1]?.author?.authid,
         co_author3: extractName(sortedCoauthorEntries[2]?.[1]?.author),
+        co_author3_id: sortedCoauthorEntries[2]?.[1]?.author?.authid,
         co_author4: extractName(sortedCoauthorEntries[3]?.[1]?.author),
+        co_author4_id: sortedCoauthorEntries[3]?.[1]?.author?.authid,
         co_author5: extractName(sortedCoauthorEntries[4]?.[1]?.author),
+        co_author5_id: sortedCoauthorEntries[4]?.[1]?.author?.authid,
         co_author6: extractName(sortedCoauthorEntries[5]?.[1]?.author),
+        co_author6_id: sortedCoauthorEntries[5]?.[1]?.author?.authid,
         co_author7: extractName(sortedCoauthorEntries[6]?.[1]?.author),
+        co_author7_id: sortedCoauthorEntries[6]?.[1]?.author?.authid,
         co_author8: extractName(sortedCoauthorEntries[7]?.[1]?.author),
+        co_author8_id: sortedCoauthorEntries[7]?.[1]?.author?.authid,
         co_author9: extractName(sortedCoauthorEntries[8]?.[1]?.author),
+        co_author9_id: sortedCoauthorEntries[8]?.[1]?.author?.authid,
         co_author10: extractName(sortedCoauthorEntries[9]?.[1]?.author),
+        co_author10_id: sortedCoauthorEntries[9]?.[1]?.author?.authid,
       };
     }),
   );

@@ -23,7 +23,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'top200-mahidol-university-medicine-20241205';
+const configName = 'top200-08-mahidol-university-energy-20241205';
 
 const inputFile = `./target/${configName}.txt` as const;
 const outputDir = `./target/output/${configName}` as const;
@@ -55,110 +55,108 @@ const inputStream = ReadableStream.from(
       let count = 1;
 
       return map((value) => {
-        const [auName, subjectArea, ind, nPub] = value
+        const [name, subjectArea, ind, nPub] = value
           .split('\t')
           .map((term) => term.trim());
 
-        const [lastName, firstName] = auName
+        const [lastName, firstName] = name
           .split(',', 2)
           .map((value) => value.trim());
 
         const index = `${count++}`.padStart(5, ' ');
         console.info(`start [${index}]:`, firstName, lastName);
 
-        return { lastName, firstName, subjectArea, ind, nPub, auName, index };
+        return { lastName, firstName, subjectArea, ind, nPub, name, index };
       });
     })(),
   );
 
 const authorStream = inputStream.pipeThrough(
-  map(
-    async ({ lastName, firstName, subjectArea, ind, nPub, auName, index }) => {
-      const query = `AUTHLASTNAME(${lastName}) AND AUTHFIRST(${firstName}) AND SUBJAREA(${subjectArea})`;
-      console.info(`\t[${index}] loading author: ${query}`);
+  map(async ({ lastName, firstName, subjectArea, ind, nPub, name, index }) => {
+    const query = `AUTHLASTNAME(${lastName}) AND AUTHFIRST(${firstName}) AND SUBJAREA(${subjectArea})`;
+    console.info(`\t[${index}] loading author: ${query}`);
 
-      try {
-        if (auName === '') {
-          throw new Error(`The auName is empty`);
-        }
-
-        let isCached = true;
-
-        const body = await (async () => {
-          try {
-            return JSON.parse(
-              await Deno.readTextFile(getCache(auName)),
-            ) as ScopusSearchResponseBody<ScopusAuthorSearchEntry>;
-          } catch {
-            isCached = false;
-            return await authorSearchApi.search(
-              {
-                query,
-                view: 'STANDARD',
-              },
-              (limit, remaining, reset, status) =>
-                console.info(
-                  `\t[${index}] rateLimit: ${remaining?.padStart(
-                    5,
-                    ' ',
-                  )}/${limit} reset: ${reset} [${status}]`,
-                ),
-            );
-          }
-        })();
-
-        console.info(`\t[${index}] loaded`);
-        return {
-          index,
-          lastName,
-          firstName,
-          subjectArea,
-          ind,
-          nPub,
-          auName,
-          isCached,
-          body,
-          type: 'result' as const,
-        };
-      } catch (err) {
-        console.error(`\t[${index}] error`, err);
-        return {
-          index,
-          lastName,
-          firstName,
-          subjectArea,
-          ind,
-          nPub,
-          auName,
-          isCached: false,
-          body:
-            err instanceof Error
-              ? new Error(err.message, {
-                  cause: {
-                    query: query,
-                    error: err.cause,
-                    origin: err,
-                  },
-                })
-              : new Error(`${err}`, {
-                  cause: {
-                    query: query,
-                    origin: err,
-                  },
-                }),
-          type: 'error' as const,
-        };
+    try {
+      if (name === '') {
+        throw new Error(`The name is empty`);
       }
-    },
-  ),
+
+      let isCached = true;
+
+      const body = await (async () => {
+        try {
+          return JSON.parse(
+            await Deno.readTextFile(getCache(name)),
+          ) as ScopusSearchResponseBody<ScopusAuthorSearchEntry>;
+        } catch {
+          isCached = false;
+          return await authorSearchApi.search(
+            {
+              query,
+              view: 'STANDARD',
+            },
+            (limit, remaining, reset, status) =>
+              console.info(
+                `\t[${index}] rateLimit: ${remaining?.padStart(
+                  5,
+                  ' ',
+                )}/${limit} reset: ${reset} [${status}]`,
+              ),
+          );
+        }
+      })();
+
+      console.info(`\t[${index}] loaded`);
+      return {
+        index,
+        lastName,
+        firstName,
+        subjectArea,
+        ind,
+        nPub,
+        name,
+        isCached,
+        body,
+        type: 'result' as const,
+      };
+    } catch (err) {
+      console.error(`\t[${index}] error`, err);
+      return {
+        index,
+        lastName,
+        firstName,
+        subjectArea,
+        ind,
+        nPub,
+        name,
+        isCached: false,
+        body:
+          err instanceof Error
+            ? new Error(err.message, {
+                cause: {
+                  query: query,
+                  error: err.cause,
+                  origin: err,
+                },
+              })
+            : new Error(`${err}`, {
+                cause: {
+                  query: query,
+                  origin: err,
+                },
+              }),
+        type: 'error' as const,
+      };
+    }
+  }),
 );
 
 const [cachingAuthorStream, preResultsAuthorStream] = authorStream.tee();
 
 const cachingAuthorPromise = cachingAuthorStream.pipeTo(
   new WritableStream({
-    async write({ index, auName, isCached, body }) {
-      if (isCached && getCache(auName) === getOuput(auName)) {
+    async write({ index, name, isCached, body }) {
+      if (isCached && getCache(name) === getOuput(name)) {
         console.info(`\t[${index}] done: cached`);
         return;
       }
@@ -181,7 +179,7 @@ const cachingAuthorPromise = cachingAuthorStream.pipeTo(
 
       console.info(`\t[${index}] writing to file`);
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
-      const fileId = auName === '' ? `${indexPrefix}` : auName;
+      const fileId = name === '' ? `${indexPrefix}` : name;
       const prefix = isError ? `error-${indexPrefix}-` : '';
       const fpOut = await Deno.open(getOuput(`${prefix}${fileId}`), {
         create: true,
@@ -204,65 +202,71 @@ const resultsAuthorStream = preResultsAuthorStream
     }),
   )
   .pipeThrough(
-    flatMap(
-      ({
-        index,
-        lastName,
-        firstName,
-        subjectArea,
-        ind,
-        nPub,
-        auName,
-        body,
-      }) => {
-        const sortedEntries = body['search-results']['entry'].sort(
-          (pre, next) => {
-            const docCountPre = +pre['document-count'];
-            const docCountNext = +next['document-count'];
+    (() => {
+      const idSet = new Set<string>();
 
-            return docCountPre > docCountNext
-              ? -1
-              : docCountPre < docCountNext
-              ? 1
-              : 0;
-          },
-        );
+      return flatMap(
+        ({
+          index,
+          lastName,
+          firstName,
+          subjectArea,
+          ind,
+          nPub,
+          name,
+          body,
+        }) => {
+          const sortedEntries = body['search-results']['entry']
+            .filter((entry) => !idSet.has(entry['dc:identifier'].split(':')[1]))
+            .sort((pre, next) => {
+              const docCountPre = +pre['document-count'];
+              const docCountNext = +next['document-count'];
 
-        const result =
-          sortedEntries.find(
-            (entry) =>
-              entry['preferred-name'].surname === lastName &&
-              entry['preferred-name']['initials'] === firstName,
-          ) ?? sortedEntries[0];
+              return docCountPre > docCountNext
+                ? -1
+                : docCountPre < docCountNext
+                ? 1
+                : 0;
+            });
 
-        return ReadableStream.from(
-          result
-            ? (() => {
-                const id = result['dc:identifier'].split(':')[1];
-                const preferredName = result['preferred-name'];
-                const document_count = result['document-count'];
+          const result =
+            sortedEntries.find(
+              (entry) =>
+                entry['preferred-name'].surname === lastName &&
+                entry['preferred-name']['initials'] === firstName,
+            ) ?? sortedEntries[0];
 
-                return [
-                  {
-                    id,
-                    auName,
-                    ind,
-                    'given-name': preferredName['given-name'],
-                    surname: preferredName['surname'],
-                    initials: preferredName['initials'],
-                    document_count,
-                    lastName,
-                    firstName,
-                    subjectArea,
-                    nPub,
-                    index,
-                  },
-                ];
-              })()
-            : [],
-        );
-      },
-    ),
+          return ReadableStream.from(
+            result
+              ? (() => {
+                  const id = result['dc:identifier'].split(':')[1];
+                  const preferredName = result['preferred-name'];
+                  const documentCount = result['document-count'];
+
+                  idSet.add(id);
+
+                  return [
+                    {
+                      id,
+                      name,
+                      ind,
+                      'given-name': preferredName['given-name'],
+                      surname: preferredName['surname'],
+                      initials: preferredName['initials'],
+                      'number-of-publications': nPub,
+                      'searching-subject-area': subjectArea,
+                      'document-count': documentCount,
+                      lastName,
+                      firstName,
+                      index,
+                    },
+                  ];
+                })()
+              : [],
+          );
+        },
+      );
+    })(),
   );
 
 const resultsAuthorPromise = (async () => {
