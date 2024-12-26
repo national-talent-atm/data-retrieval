@@ -49,11 +49,12 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'top200-02-mahidol-university-biochem-with-id-20241205';
+const configName = 'top200-12-chulalongkorn-university-energy-with-id-20241205';
 const sortedBy = 'coverDate,-title';
 
 const inputFile = `./target/${configName}.txt` as const;
-const outputDir = `./target/output/${configName}` as const;
+const outputDir =
+  `./target/output/top200-chulalongkorn-university-20241205` as const;
 const catchDir = outputDir;
 const resultFile = `${outputDir}/${configName}-talent-full-result.csv`;
 
@@ -566,7 +567,9 @@ const combinedStream = tupleZipReadableStreams(
 
       const asjcSorted = ((classifications) =>
         classifications['@type'] === 'ASJC'
-          ? classifications['classification']
+          ? Array.isArray(classifications['classification'])
+            ? classifications['classification']
+            : [classifications['classification']]
           : [])(
         authorResult['author-profile']['classificationgroup'][
           'classifications'
@@ -631,6 +634,7 @@ const combinedStream = tupleZipReadableStreams(
       );
 
       return {
+        id: authorBody.id,
         industry: authorBody.ind,
         'given-name': givenName,
         surname,

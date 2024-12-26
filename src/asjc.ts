@@ -1,6 +1,5 @@
 import { TextLineStream } from 'jsr:@std/streams/text-line-stream';
-import { filter, map } from './streams.ts';
-import { unwrapPromiseReadableStream } from './utils.ts';
+import { filter, map, toStream } from './streams.ts';
 
 const asjcFile = './asjc.txt';
 const asjcUrl = new URL(asjcFile, import.meta.url);
@@ -8,7 +7,7 @@ const asjcUrl = new URL(asjcFile, import.meta.url);
 export function readAsjcTuple(): ReadableStream<
   readonly [string, string, string, string]
 > {
-  const body = unwrapPromiseReadableStream(
+  const body = toStream(
     (async () => {
       const body = (await fetch(asjcUrl)).body;
 

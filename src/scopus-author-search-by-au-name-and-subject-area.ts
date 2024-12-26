@@ -23,7 +23,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'top200-08-mahidol-university-energy-20241205';
+const configName = 'top200-08-mahidol-university-energy-with-id-20241205';
 
 const inputFile = `./target/${configName}.txt` as const;
 const outputDir = `./target/output/${configName}` as const;
@@ -73,7 +73,9 @@ const inputStream = ReadableStream.from(
 
 const authorStream = inputStream.pipeThrough(
   map(async ({ lastName, firstName, subjectArea, ind, nPub, name, index }) => {
-    const query = `AUTHLASTNAME(${lastName}) AND AUTHFIRST(${firstName}) AND SUBJAREA(${subjectArea})`;
+    const query = firstName
+      ? `AUTHLASTNAME(${lastName}) AND AUTHFIRST(${firstName}) AND SUBJAREA(${subjectArea})`
+      : `AUTHLASTNAME(${lastName}) AND SUBJAREA(${subjectArea})`;
     console.info(`\t[${index}] loading author: ${query}`);
 
     try {
@@ -233,7 +235,8 @@ const resultsAuthorStream = preResultsAuthorStream
             sortedEntries.find(
               (entry) =>
                 entry['preferred-name'].surname === lastName &&
-                entry['preferred-name']['initials'] === firstName,
+                (!firstName ||
+                  entry['preferred-name']['initials'] === firstName),
             ) ?? sortedEntries[0];
 
           return ReadableStream.from(

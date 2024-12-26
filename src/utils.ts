@@ -27,32 +27,3 @@ export async function* readerToAsyncIterable(
     reader.close();
   }
 }
-
-export function unwrapPromiseReadableStream<T>(
-  sourcePromise: Promise<ReadableStream<T>>,
-): ReadableStream<T> {
-  let sourceStream: ReadableStream<T> | null = null;
-
-  return new ReadableStream({
-    async start(controller) {
-      sourceStream = await sourcePromise;
-      const reader = sourceStream.getReader();
-
-      for (
-        let { done, value } = await reader.read();
-        !done;
-        { done, value } = await reader.read()
-      ) {
-        controller.enqueue(value);
-      }
-
-      controller.close();
-    },
-
-    cancel(reason) {
-      if (sourceStream !== null) {
-        sourceStream.cancel(reason);
-      }
-    },
-  });
-}

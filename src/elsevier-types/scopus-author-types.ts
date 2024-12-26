@@ -29,7 +29,7 @@ export type ScopusSubjectAreas = {
 
 export type ScopusClassificationGroup = {
   classifications: ScopusType<'@type'> & {
-    classification: ScopusClassification[];
+    classification: ScopusClassification | ScopusClassification[];
   };
 };
 
