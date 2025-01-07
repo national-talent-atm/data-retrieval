@@ -49,8 +49,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName =
-  'top200-15-chulalongkorn-university-medicine-with-id-20241205';
+const configName = 'top200-12-chulalongkorn-university-energy-with-id-20241205';
 const sortedBy = 'coverDate,-title';
 
 const inputFile = `./target/${configName}.txt` as const;
@@ -634,6 +633,42 @@ const combinedStream = tupleZipReadableStreams(
             : 0,
       );
 
+      const ipDoc = ((currentAffiliation) =>
+        (Array.isArray(currentAffiliation)
+          ? currentAffiliation.find(
+              (affiliation) => affiliation['ip-doc']['@type'] === 'dept',
+            ) ?? currentAffiliation[0]
+          : currentAffiliation)['ip-doc'])(
+        authorResult['author-profile']['affiliation-current'].affiliation,
+      );
+
+      const aff = ((ipDoc) => {
+        const { department, facAndUni } =
+          ipDoc['@type'] === 'dept'
+            ? {
+                department: ipDoc['preferred-name']?.$,
+                facAndUni: ipDoc['parent-preferred-name']?.$ ?? '',
+              }
+            : { facAndUni: ipDoc['preferred-name']?.$ ?? '' };
+        const { faculty, university } = ((splitFacAndUni) =>
+          splitFacAndUni.length === 2
+            ? {
+                faculty: splitFacAndUni[0],
+                university: splitFacAndUni[1],
+              }
+            : {
+                university: splitFacAndUni[0],
+              })(facAndUni.split(/\s*,(?=[^,]*$)\s*/u));
+
+        return {
+          department,
+          faculty,
+          university,
+          city: ipDoc.address?.city,
+          country: ipDoc.address?.country,
+        };
+      })(ipDoc);
+
       return {
         id: authorBody.id,
         industry: authorBody.ind,
@@ -684,6 +719,12 @@ const combinedStream = tupleZipReadableStreams(
         co_author9_id: sortedCoauthorEntries[8]?.[1]?.author?.authid,
         co_author10: extractName(sortedCoauthorEntries[9]?.[1]?.author),
         co_author10_id: sortedCoauthorEntries[9]?.[1]?.author?.authid,
+
+        'affiliation-department': aff.department,
+        'affiliation-faculty': aff.faculty,
+        'affiliation-university': aff.university,
+        'affiliation-city': aff.city,
+        'affiliation-country': aff.country,
       };
     }),
   );

@@ -49,13 +49,11 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName =
-  'top200-15-chulalongkorn-university-medicine-with-id-20241205';
+const configName = 'pure-scopus-id-20241229';
 const sortedBy = 'coverDate,-title';
 
 const inputFile = `./target/${configName}.txt` as const;
-const outputDir =
-  `./target/output/top200-chulalongkorn-university-20241205` as const;
+const outputDir = `./target/output/${configName}` as const;
 const catchDir = outputDir;
 const resultFile = `${outputDir}/${configName}-talent-full-result.csv`;
 
@@ -104,14 +102,12 @@ const inputStream = ReadableStream.from(
       let count = 1;
 
       return map((value) => {
-        const [id, name, ind, ...rest] = value
-          .split('\t')
-          .map((term) => term.trim());
+        const [id, ...rest] = value.split('\t').map((term) => term.trim());
 
         const index = `${count++}`.padStart(5, ' ');
-        console.info(`start [${index}]:`, id, name, ind);
+        console.info(`start [${index}]:`, id);
 
-        return { id, name, ind, index, rest };
+        return { id, index, rest };
       });
     })(),
   );
@@ -123,13 +119,13 @@ const [inputMetricsStream, inputScopusSearchStream] =
 
 const [authorStream, auhtorCachingStream] = inputAuthorStream
   .pipeThrough(
-    map(async ({ id, name, ind, index, rest }) => {
+    map(async ({ id, index, rest }) => {
       const query = `AU-ID(${id})`;
       console.info(`\t[${index}] loading author: ${query}`);
 
       try {
         if (id === '') {
-          throw new Error(`The scopus-id for "${name}" is empty`);
+          throw new Error(`The scopus-id for index: "${index}" is empty`);
         }
 
         let isCached = true;
@@ -161,8 +157,6 @@ const [authorStream, auhtorCachingStream] = inputAuthorStream
         return {
           index,
           id,
-          name,
-          ind,
           rest,
           isCached,
           body,
@@ -173,8 +167,6 @@ const [authorStream, auhtorCachingStream] = inputAuthorStream
         return {
           index,
           id,
-          name,
-          ind,
           rest,
           isCached: false,
           body:
@@ -201,7 +193,7 @@ const [authorStream, auhtorCachingStream] = inputAuthorStream
 
 const auhtorCachingPromise = auhtorCachingStream.pipeTo(
   new WritableStream({
-    async write({ index, id, name, isCached, body }) {
+    async write({ index, id, isCached, body }) {
       if (isCached && getAuthorCache(id) === getAuthorOuput(id)) {
         console.info(`\t[${index}] done: cached`);
         return;
@@ -225,7 +217,7 @@ const auhtorCachingPromise = auhtorCachingStream.pipeTo(
 
       console.info(`\t[${index}] writing to file`);
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
-      const fileId = id === '' ? `${indexPrefix}-${name}` : id;
+      const fileId = id === '' ? `${indexPrefix}-${index}` : id;
       const prefix = isError ? `error-${indexPrefix}-` : '';
       const fpOut = await Deno.open(getAuthorOuput(`${prefix}${fileId}`), {
         create: true,
@@ -240,13 +232,13 @@ const auhtorCachingPromise = auhtorCachingStream.pipeTo(
 
 const [metricsStream, metricsCachingStream] = inputMetricsStream
   .pipeThrough(
-    map(async ({ id, name, ind, index, rest }) => {
+    map(async ({ id, index, rest }) => {
       const query = `AU-ID(${id})`;
       console.info(`\t[${index}] loading metrics: ${query}`);
 
       try {
         if (id === '') {
-          throw new Error(`The scopus-id for "${name}" is empty`);
+          throw new Error(`The scopus-id for index: "${index}" is empty`);
         }
 
         let isCached = true;
@@ -295,8 +287,6 @@ const [metricsStream, metricsCachingStream] = inputMetricsStream
         return {
           index,
           id,
-          name,
-          ind,
           rest,
           isCached,
           body,
@@ -307,8 +297,6 @@ const [metricsStream, metricsCachingStream] = inputMetricsStream
         return {
           index,
           id,
-          name,
-          ind,
           rest,
           isCached: false,
           body:
@@ -335,7 +323,7 @@ const [metricsStream, metricsCachingStream] = inputMetricsStream
 
 const metricsCachingPromise = metricsCachingStream.pipeTo(
   new WritableStream({
-    async write({ index, id, name, isCached, body }) {
+    async write({ index, id, isCached, body }) {
       if (isCached && getMetricsCache(id) === getMetricsOuput(id)) {
         console.info(`\t[${index}] done: cached`);
         return;
@@ -359,7 +347,7 @@ const metricsCachingPromise = metricsCachingStream.pipeTo(
 
       console.info(`\t[${index}] writing to file`);
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
-      const fileId = id === '' ? `${indexPrefix}-${name}` : id;
+      const fileId = id === '' ? `${indexPrefix}-${index}` : id;
       const prefix = isError ? `error-${indexPrefix}-` : '';
       const fpOut = await Deno.open(getMetricsOuput(`${prefix}${fileId}`), {
         create: true,
@@ -374,14 +362,14 @@ const metricsCachingPromise = metricsCachingStream.pipeTo(
 
 const [scopusSearchStream, scopusSearchCachingStream] = inputScopusSearchStream
   .pipeThrough(
-    map(async ({ id, name, ind, index, rest }) => {
-      console.info(`start [${index}]:`, id, name, ind);
+    map(async ({ id, index, rest }) => {
+      console.info(`start [${index}]:`, id);
       // const query = `AU-ID(${id}) AND FIRSTAUTH(${name})`;
       const query = `AU-ID(${id})`;
       console.info(`\t[${index}] loading: ${query}`);
       try {
         if (id === '') {
-          throw new Error(`The scopus-id for "${name}" is empty`);
+          throw new Error(`The scopus-id for index: "${index}" is empty`);
         }
 
         let isCached = true;
@@ -417,8 +405,6 @@ const [scopusSearchStream, scopusSearchCachingStream] = inputScopusSearchStream
         return {
           index,
           id,
-          name,
-          ind,
           rest,
           isCached,
           body,
@@ -429,8 +415,6 @@ const [scopusSearchStream, scopusSearchCachingStream] = inputScopusSearchStream
         return {
           index,
           id,
-          name,
-          ind,
           rest,
           isCached: false,
           body:
@@ -457,7 +441,7 @@ const [scopusSearchStream, scopusSearchCachingStream] = inputScopusSearchStream
 
 const scopusSearchCachingPromise = scopusSearchCachingStream.pipeTo(
   new WritableStream({
-    async write({ index, id, name, isCached, body }) {
+    async write({ index, id, isCached, body }) {
       if (isCached && getScopusSearchCache(id) === getScopusSearchOuput(id)) {
         console.info(`\t[${index}] done: cached`);
         return;
@@ -481,7 +465,7 @@ const scopusSearchCachingPromise = scopusSearchCachingStream.pipeTo(
 
       console.info(`\t[${index}] writing to file`);
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
-      const fileId = id === '' ? `${indexPrefix}-${name}` : id;
+      const fileId = id === '' ? `${indexPrefix}-${index}` : id;
       const prefix = isError ? `error-${indexPrefix}-` : '';
       const fpOut = await Deno.open(
         getScopusSearchOuput(`${prefix}${fileId}`),
@@ -559,8 +543,8 @@ const combinedStream = tupleZipReadableStreams(
         throw 'ID miss match';
       }
 
-      const [givenName, surname, _, nPub, searchingSubjectArea] =
-        authorBody.rest;
+      // const [givenName, surname, _, nPub, searchingSubjectArea] =
+      //   authorBody.rest;
 
       const authorResult = authorBody.body['author-retrieval-response'][0];
       const metrics = metricsBody.body.results[0].metrics;
@@ -634,14 +618,17 @@ const combinedStream = tupleZipReadableStreams(
             : 0,
       );
 
+      const givenName =
+        authorResult['author-profile']['preferred-name']['given-name'];
+      const surname = authorResult['author-profile']['preferred-name'].surname;
+
       return {
         id: authorBody.id,
-        industry: authorBody.ind,
         'given-name': givenName,
         surname,
-        name: authorBody.name,
-        'number-of-publications': nPub,
-        'searching-subject-area': searchingSubjectArea,
+        name: authorBody.body['author-retrieval-response'][0]['author-profile'][
+          'preferred-name'
+        ]['indexed-name'],
         asjc: asjcCode,
         'asjc-frequency': asjcFeq,
         ...asjcData,

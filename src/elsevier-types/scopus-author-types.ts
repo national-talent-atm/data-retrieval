@@ -43,13 +43,25 @@ export type ScopusJournalHistory = ScopusType<'@type'> & {
   journal: ScopusJournal[];
 };
 
-export type ScopusIpDoc = ScopusType<'@id' | '@type' | '@relationship'> & {
+export type ScopusIpDocName = ScopusType<'@source' | '$'>;
+
+export type ScopusBaseIpDoc = ScopusType<'@id' | '@type' | '@relationship'> & {
   afdispname: string;
-  'preferred-name': string;
-  'parent-preferred-name': string;
+  'preferred-name': ScopusIpDocName;
   'sort-name': string;
   address: ScopusAddress;
 };
+
+export type ScopusParentIpDoc = ScopusBaseIpDoc & {
+  '@type': 'parent';
+};
+
+export type ScopusDeptIpDoc = ScopusBaseIpDoc & {
+  '@type': 'dept';
+  'parent-preferred-name': ScopusIpDocName;
+};
+
+export type ScopusIpDoc = ScopusParentIpDoc | ScopusDeptIpDoc;
 
 export type ScopusProfileAffiliation = ScopusType<
   '@affiliation-id' | '@parent'
@@ -70,7 +82,7 @@ export type ScopusAuthorProfile = {
   'publication-range': ScopusRange;
   'journal-history': ScopusJournalHistory;
   'affiliation-current': {
-    affiliation: ScopusProfileAffiliation;
+    affiliation: ScopusProfileAffiliation | ScopusProfileAffiliation[];
   };
   'affiliation-history': ScopusProfileAffiliationHistory;
 };
