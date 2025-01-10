@@ -304,7 +304,7 @@ export function tupleZipReadableStreams<T extends [unknown, ...unknown[]]>(
   });
 }
 
-export function toStream<T>(
+export function flatToStream<T>(
   promise: Promise<ReadableStream<T>>,
 ): Awaited<typeof promise> {
   return new ReadableStream({
