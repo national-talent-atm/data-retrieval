@@ -29,7 +29,7 @@ export class ScopusClient {
   private nextFetchTime = Date.now();
 
   constructor(
-    private readonly apiKeys: string[],
+    private readonly apiKeys: readonly string[],
     rateLimit: number,
     private maxRetry = 3,
   ) {

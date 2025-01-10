@@ -49,7 +49,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'pure-scopus-id-20241229';
+const configName = 'new-165-20250108';
 const sortedBy = 'coverDate,-title';
 
 const inputFile = `./target/${configName}.txt` as const;
@@ -105,7 +105,7 @@ const inputStream = ReadableStream.from(
         const [id, ...rest] = value.split('\t').map((term) => term.trim());
 
         const index = `${count++}`.padStart(5, ' ');
-        console.info(`start [${index}]:`, id);
+        console.log(`start [${index}]:`, id);
 
         return { id, index, rest };
       });
@@ -121,7 +121,7 @@ const [authorStream, auhtorCachingStream] = inputAuthorStream
   .pipeThrough(
     map(async ({ id, index, rest }) => {
       const query = `AU-ID(${id})`;
-      console.info(`\t[${index}] loading author: ${query}`);
+      console.log(`\t%c[${index}] loading author: ${query}`, 'color: blue');
 
       try {
         if (id === '') {
@@ -143,17 +143,18 @@ const [authorStream, auhtorCachingStream] = inputAuthorStream
                 view: 'ENHANCED',
               },
               (limit, remaining, reset, status) =>
-                console.info(
-                  `\t[${index}] rateLimit: ${remaining?.padStart(
+                console.log(
+                  `\t%c[${index}] rateLimit: ${remaining?.padStart(
                     5,
                     ' ',
                   )}/${limit} reset: ${reset} [${status}]`,
+                  'color: blue',
                 ),
             );
           }
         })();
 
-        console.info(`\t[${index}] loaded`);
+        console.log(`\t%c[${index}] loaded`, 'color: blue');
         return {
           index,
           id,
@@ -195,7 +196,7 @@ const auhtorCachingPromise = auhtorCachingStream.pipeTo(
   new WritableStream({
     async write({ index, id, isCached, body }) {
       if (isCached && getAuthorCache(id) === getAuthorOuput(id)) {
-        console.info(`\t[${index}] done: cached`);
+        console.log(`\t%c[${index}] 💾 done: cached`, 'color: blue');
         return;
       }
 
@@ -215,7 +216,7 @@ const auhtorCachingPromise = auhtorCachingStream.pipeTo(
         ),
       );
 
-      console.info(`\t[${index}] writing to file`);
+      console.log(`\t%c[${index}] 💾 writing to file`, 'color: blue');
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
       const fileId = id === '' ? `${indexPrefix}-${index}` : id;
       const prefix = isError ? `error-${indexPrefix}-` : '';
@@ -225,7 +226,7 @@ const auhtorCachingPromise = auhtorCachingStream.pipeTo(
       });
       await fpOut.write(dataArray);
       fpOut.close();
-      console.info(`\t[${index}] done`);
+      console.log(`\t%c[${index}] 💾 done`, 'color: blue');
     },
   }),
 );
@@ -234,7 +235,7 @@ const [metricsStream, metricsCachingStream] = inputMetricsStream
   .pipeThrough(
     map(async ({ id, index, rest }) => {
       const query = `AU-ID(${id})`;
-      console.info(`\t[${index}] loading metrics: ${query}`);
+      console.log(`\t%c[${index}] loading metrics: ${query}`, 'color: crimson');
 
       try {
         if (id === '') {
@@ -272,18 +273,19 @@ const [metricsStream, metricsCachingStream] = inputMetricsStream
                   yearRange: '10yrs',
                 },
                 rateLimitNotify: (limit, remaining, reset, status) =>
-                  console.info(
-                    `\t[${index}] rateLimit: ${remaining?.padStart(
+                  console.log(
+                    `\t%c[${index}] rateLimit: ${remaining?.padStart(
                       5,
                       ' ',
                     )}/${limit} reset: ${reset} [${status}]`,
+                    'color: crimson',
                   ),
               },
             );
           }
         })();
 
-        console.info(`\t[${index}] loaded`);
+        console.log(`\t%c[${index}] loaded`, 'color: crimson');
         return {
           index,
           id,
@@ -325,7 +327,7 @@ const metricsCachingPromise = metricsCachingStream.pipeTo(
   new WritableStream({
     async write({ index, id, isCached, body }) {
       if (isCached && getMetricsCache(id) === getMetricsOuput(id)) {
-        console.info(`\t[${index}] done: cached`);
+        console.log(`\t%c[${index}] 💾 done: cached`, 'color: crimson');
         return;
       }
 
@@ -345,7 +347,7 @@ const metricsCachingPromise = metricsCachingStream.pipeTo(
         ),
       );
 
-      console.info(`\t[${index}] writing to file`);
+      console.log(`\t%c[${index}] 💾 writing to file`, 'color: crimson');
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
       const fileId = id === '' ? `${indexPrefix}-${index}` : id;
       const prefix = isError ? `error-${indexPrefix}-` : '';
@@ -355,7 +357,7 @@ const metricsCachingPromise = metricsCachingStream.pipeTo(
       });
       await fpOut.write(dataArray);
       fpOut.close();
-      console.info(`\t[${index}] done`);
+      console.log(`\t%c[${index}] 💾 done`, 'color: crimson');
     },
   }),
 );
@@ -363,10 +365,9 @@ const metricsCachingPromise = metricsCachingStream.pipeTo(
 const [scopusSearchStream, scopusSearchCachingStream] = inputScopusSearchStream
   .pipeThrough(
     map(async ({ id, index, rest }) => {
-      console.info(`start [${index}]:`, id);
       // const query = `AU-ID(${id}) AND FIRSTAUTH(${name})`;
       const query = `AU-ID(${id})`;
-      console.info(`\t[${index}] loading: ${query}`);
+      console.log(`\t%c[${index}] loading: ${query}`, 'color: darkcyan');
       try {
         if (id === '') {
           throw new Error(`The scopus-id for index: "${index}" is empty`);
@@ -388,19 +389,20 @@ const [scopusSearchStream, scopusSearchCachingStream] = inputScopusSearchStream
                 sort: sortedBy,
               },
               (limit, remaining, reset, status) =>
-                console.info(
-                  `\t[${index}] rateLimit: ${remaining?.padStart(
+                console.log(
+                  `\t%c[${index}] rateLimit: ${remaining?.padStart(
                     5,
                     ' ',
                   )}/${limit} reset: ${reset} [${status}]`,
+                  'color: darkcyan',
                 ),
             );
           }
         })();
 
-        console.info(
-          `\t[${index}] loaded`,
-          `${body['search-results']['entry'].length}/${body['search-results']['opensearch:totalResults']}`,
+        console.log(
+          `\t%c[${index}] loaded: ${body['search-results']['entry'].length}/${body['search-results']['opensearch:totalResults']}`,
+          'color: darkcyan',
         );
         return {
           index,
@@ -443,7 +445,7 @@ const scopusSearchCachingPromise = scopusSearchCachingStream.pipeTo(
   new WritableStream({
     async write({ index, id, isCached, body }) {
       if (isCached && getScopusSearchCache(id) === getScopusSearchOuput(id)) {
-        console.info(`\t[${index}] done: cached`);
+        console.log(`\t%c[${index}] 💾 done: cached`, 'color: darkcyan');
         return;
       }
 
@@ -463,7 +465,7 @@ const scopusSearchCachingPromise = scopusSearchCachingStream.pipeTo(
         ),
       );
 
-      console.info(`\t[${index}] writing to file`);
+      console.log(`\t%c[${index}] 💾 writing to file`, 'color: darkcyan');
       const indexPrefix = `inx${index.replaceAll(' ', '0')}`;
       const fileId = id === '' ? `${indexPrefix}-${index}` : id;
       const prefix = isError ? `error-${indexPrefix}-` : '';
@@ -476,7 +478,7 @@ const scopusSearchCachingPromise = scopusSearchCachingStream.pipeTo(
       );
       await fpOut.write(dataArray);
       fpOut.close();
-      console.info(`\t[${index}] done`);
+      console.log(`\t%c[${index}] 💾 done`, 'color: darkcyan');
     },
   }),
 );
@@ -534,7 +536,8 @@ const combinedStream = tupleZipReadableStreams(
   .pipeThrough(
     map(([authorBody, metricsBody, scopusSearchBody]) => {
       console.log(
-        `Combinding: ${authorBody.id}:${metricsBody.id}:${scopusSearchBody.id}`,
+        `\t%c[${authorBody.index}] combinding: AUTHOR:${authorBody.id} | METRICS:${metricsBody.id} | SCOPUS-SEARCH:${scopusSearchBody.id}`,
+        'color: darkorange',
       );
       if (
         authorBody.id !== metricsBody.id ||
@@ -543,8 +546,7 @@ const combinedStream = tupleZipReadableStreams(
         throw 'ID miss match';
       }
 
-      // const [givenName, surname, _, nPub, searchingSubjectArea] =
-      //   authorBody.rest;
+      const [firstname_en, lastname_en] = authorBody.rest;
 
       const authorResult = authorBody.body['author-retrieval-response'][0];
       const metrics = metricsBody.body.results[0].metrics;
@@ -660,6 +662,8 @@ const combinedStream = tupleZipReadableStreams(
 
       return {
         id: authorBody.id,
+        firstname_en,
+        lastname_en,
         'given-name': givenName,
         surname,
         name: authorBody.body['author-retrieval-response'][0]['author-profile'][

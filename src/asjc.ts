@@ -1,5 +1,6 @@
 import { TextLineStream } from 'jsr:@std/streams/text-line-stream';
 import { filter, map, toStream } from './streams.ts';
+import { AsjcData } from './asjc.types.ts';
 
 const asjcFile = './asjc.txt';
 const asjcUrl = new URL(asjcFile, import.meta.url);
@@ -29,12 +30,6 @@ export function readAsjcTuple(): ReadableStream<
     );
 }
 
-export type AsjcData = {
-  readonly 'subject-area': string;
-  readonly 'research-branch': string;
-  readonly 'research-field': string;
-};
-
 export async function readAsjcMap(): Promise<ReadonlyMap<string, AsjcData>> {
   const asjcMap = new Map<string, AsjcData>();
 
@@ -51,4 +46,8 @@ export async function readAsjcMap(): Promise<ReadonlyMap<string, AsjcData>> {
   );
 
   return asjcMap;
+}
+
+export async function readAsjcJSON(): Promise<{ [code: string]: AsjcData }> {
+  return Object.fromEntries(await readAsjcMap());
 }

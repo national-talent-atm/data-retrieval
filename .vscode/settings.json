@@ -13,5 +13,8 @@
   "deno.inlayHints.parameterNames.suppressWhenArgumentMatchesName": false,
   "deno.inlayHints.variableTypes.enabled": false,
   "deno.inlayHints.variableTypes.suppressWhenTypeMatchesName": false,
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  }
 }
