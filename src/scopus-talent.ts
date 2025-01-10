@@ -30,10 +30,6 @@ import {
 } from './streams.ts';
 import { readerToAsyncIterable } from './utils.ts';
 
-type xxx<A> = A extends never ? [A, 1] : [1, A];
-
-type y = xxx<'a' | 'b'>;
-
 type AsjcCode = keyof typeof asjc;
 
 type StreamData = {
@@ -60,6 +56,7 @@ type FetchedStreamData<BT = unknown> = GenerateFetchedStreamData<
 >;
 
 function writeCacheOrErrorToFile(
+  fetchingName: string,
   cacheFileFn: (streamData: StreamData) => string,
   errorFileFn: (streamData: StreamData) => string,
   color: string,
@@ -76,7 +73,10 @@ function writeCacheOrErrorToFile(
       const { indexText, isCached, body } = fetchedStreamData;
 
       if (isCached) {
-        console.log(`\t%c[${indexText}] 💾 done: cached`, `color: ${color}`);
+        console.log(
+          `\t%c[${indexText}] [${fetchingName}] 💾 done (cached)`,
+          `color: ${color}`,
+        );
         return;
       }
 
@@ -96,7 +96,10 @@ function writeCacheOrErrorToFile(
         ),
       );
 
-      console.log(`\t%c[${indexText}] 💾 writing to file`, `color: ${color}`);
+      console.log(
+        `\t%c[${indexText}] [${fetchingName}] 💾 writing to file`,
+        `color: ${color}`,
+      );
       const fpOut = await Deno.open(
         !isError
           ? cacheFileFn(fetchedStreamData)
@@ -108,7 +111,10 @@ function writeCacheOrErrorToFile(
       );
       await fpOut.write(encodedData);
       fpOut.close();
-      console.log(`\t%c[${indexText}] 💾 done`, `color: ${color}`);
+      console.log(
+        `\t%c[${indexText}] [${fetchingName}] 💾 done`,
+        `color: ${color}`,
+      );
     },
   });
 }
@@ -122,7 +128,11 @@ function fetchFromCacheOrApi<O>(
   fetchFn: (streamData: StreamData) => Promise<O> | O,
   {
     startMessageFn = <const SD extends StreamData>({ id }: SD) =>
-      `loading ${fetchingName}: ${id}` as const,
+      `loading ${fetchingName}(${id})` as const,
+    finishMessageFn = <const SD extends StreamData>({ id }: SD) =>
+      `${fetchingName}(${id}) loaded` as const,
+    errorMessageFn = <const SD extends StreamData>({ id }: SD) =>
+      `${fetchingName}(${id}) error on loading` as const,
   } = {},
 ): readonly [
   ReadableStream<
@@ -137,7 +147,7 @@ function fetchFromCacheOrApi<O>(
         const { index, id, indexText, rest } = streamData;
 
         console.log(
-          `\t%c[${indexText}] ${startMessageFn(streamData)}`,
+          `\t%c[${indexText}] [${fetchingName}] 🚀 ${startMessageFn(streamData)}`,
           `color: ${color}`,
         );
 
@@ -161,7 +171,7 @@ function fetchFromCacheOrApi<O>(
           })();
 
           console.log(
-            `\t%c[${indexText}] ${fetchingName} loaded`,
+            `\t%c[${indexText}] [${fetchingName}] 🏁 ${finishMessageFn(streamData)}`,
             `color: ${color}`,
           );
 
@@ -176,7 +186,7 @@ function fetchFromCacheOrApi<O>(
           };
         } catch (err) {
           console.log(
-            `\t%c[${indexText}] ⚠ ${fetchingName} error on loading`,
+            `\t%c[${indexText}] [${fetchingName}] ⚠ ${errorMessageFn(streamData)}`,
             `color: ${color}`,
             err,
           );
@@ -212,7 +222,7 @@ function fetchFromCacheOrApi<O>(
   return [
     outputStream,
     cachingStream.pipeTo(
-      writeCacheOrErrorToFile(cacheFileFn, errorFileFn, color),
+      writeCacheOrErrorToFile(fetchingName, cacheFileFn, errorFileFn, color),
     ),
   ] as const;
 }
@@ -243,7 +253,7 @@ export type AdditionalDataFn = (args: {
 }) => { [key: string]: unknown };
 
 const defaultIndexTextFn = (index: number): string =>
-  `${index}`.padStart(5, ' ');
+  `${index}`.padStart(6, ' ');
 
 export async function generate(
   configName: string,
@@ -355,7 +365,7 @@ export async function generate(
           const [id, ...rest] = value.split('\t').map((term) => term.trim());
 
           const indexText = indexFn(index++);
-          console.log(`start [${indexText}]:`, id);
+          console.log(`%cStart\t[${indexText}] 🌌 ${id}`, 'font-weight: bold');
 
           return { index, id, indexText, rest };
         });
@@ -388,294 +398,70 @@ export async function generate(
       ),
   );
 
-  // const [authorStream, auhtorCachingStream] = inputAuthorStream
-  //   .pipeThrough(
-  //     map(async ({ index, id, indexText, rest }) => {
-  //       const query = `AU-ID(${id})`;
-  //       console.log(
-  //         `\t%c[${indexText}] loading author: ${query}`,
-  //         'color: blue',
-  //       );
-
-  //       try {
-  //         if (id === '') {
-  //           throw new Error(`The scopus-id for index: "${index}" is empty`);
-  //         }
-
-  //         let isCached = true;
-
-  //         const body = await (async () => {
-  //           try {
-  //             return JSON.parse(
-  //               await Deno.readTextFile(getAuthorCache(id)),
-  //             ) as ScopusAuthorResponseBody;
-  //           } catch {
-  //             isCached = false;
-  //             return await authorRetrievalApi.authorId(
-  //               id,
-  //               {
-  //                 view: 'ENHANCED',
-  //               },
-  //               (limit, remaining, reset, status) =>
-  //                 console.log(
-  //                   `\t%c[${indexText}] rateLimit: ${remaining?.padStart(
-  //                     5,
-  //                     ' ',
-  //                   )}/${limit} reset: ${reset} [${status}]`,
-  //                   'color: blue',
-  //                 ),
-  //             );
-  //           }
-  //         })();
-
-  //         console.log(`\t%c[${indexText}] loaded`, 'color: blue');
-
-  //         return {
-  //           index,
-  //           id,
-  //           indexText,
-  //           rest,
-  //           isCached,
-  //           body,
-  //           type: 'result' as const,
-  //         };
-  //       } catch (err) {
-  //         console.error(`\t[${indexText}] error`, err);
-
-  //         return {
-  //           index,
-  //           id,
-  //           indexText,
-  //           rest,
-  //           isCached: false,
-  //           body:
-  //             err instanceof Error
-  //               ? new Error(err.message, {
-  //                   cause: {
-  //                     query: query,
-  //                     error: err.cause,
-  //                     origin: err,
-  //                   },
-  //                 })
-  //               : new Error(`${err}`, {
-  //                   cause: {
-  //                     query: query,
-  //                     origin: err,
-  //                   },
-  //                 }),
-  //           type: 'error' as const,
-  //         };
-  //       }
-  //     }),
-  //   )
-  //   .tee();
-
-  // const auhtorCachingPromise = auhtorCachingStream.pipeTo(
-  //   writeCacheOrErrorToFile(getAuthorCache, getAuthorError, 'blue'),
-  // );
-
-  const [metricsStream, metricsCachingStream] = inputMetricsStream
-    .pipeThrough(
-      map(async (streamData) => {
-        const { index, id, indexText, rest } = streamData;
-
-        const query = `AU-ID(${id})`;
-        console.log(
-          `\t%c[${indexText}] loading metrics: ${query}`,
-          'color: crimson',
-        );
-
-        try {
-          if (id === '') {
-            throw new Error(`The scopus-id for index: "${index}" is empty`);
-          }
-
-          let isCached = true;
-
-          const body = await (async () => {
-            try {
-              return JSON.parse(
-                await Deno.readTextFile(getMetricsCache(streamData)),
-              ) as AuthorMetricsResponseBody;
-            } catch {
-              isCached = false;
-              return await authorMetricsApi.metrics(
-                [id],
-                [
-                  'AcademicCorporateCollaboration',
-                  'AcademicCorporateCollaborationImpact',
-                  'Collaboration',
-                  'CitationCount',
-                  'CitationsPerPublication',
-                  'CollaborationImpact',
-                  'CitedPublications',
-                  'FieldWeightedCitationImpact',
-                  'HIndices',
-                  'ScholarlyOutput',
-                  'PublicationsInTopJournalPercentiles',
-                  'OutputsInTopCitationPercentiles',
-                ],
-                {
-                  queries: {
-                    byYear: false,
-                    yearRange: '10yrs',
-                  },
-                  rateLimitNotify: (limit, remaining, reset, status) =>
-                    console.log(
-                      `\t%c[${indexText}] rateLimit: ${remaining?.padStart(
-                        5,
-                        ' ',
-                      )}/${limit} reset: ${reset} [${status}]`,
-                      'color: crimson',
-                    ),
-                },
-              );
-            }
-          })();
-
-          console.log(`\t%c[${indexText}] loaded`, 'color: crimson');
-
-          return {
-            index,
-            id,
-            indexText,
-            rest,
-            isCached,
-            body,
-            type: 'result' as const,
-          };
-        } catch (err) {
-          console.error(`\t[${indexText}] error`, err);
-
-          return {
-            index,
-            id,
-            indexText,
-            rest,
-            isCached: false,
-            body:
-              err instanceof Error
-                ? new Error(err.message, {
-                    cause: {
-                      query: query,
-                      error: err.cause,
-                      origin: err,
-                    },
-                  })
-                : new Error(`${err}`, {
-                    cause: {
-                      query: query,
-                      origin: err,
-                    },
-                  }),
-            type: 'error' as const,
-          };
-        }
-      }),
-    )
-    .tee();
-
-  const metricsCachingPromise = metricsCachingStream.pipeTo(
-    writeCacheOrErrorToFile(getMetricsCache, getMetricsError, 'crimson'),
+  const [metricsStream, metricsCachingPromise] = fetchFromCacheOrApi(
+    inputMetricsStream,
+    'metrics',
+    getMetricsCache,
+    getMetricsError,
+    'crimson',
+    ({ id, indexText }) =>
+      authorMetricsApi.metrics(
+        [id],
+        [
+          'AcademicCorporateCollaboration',
+          'AcademicCorporateCollaborationImpact',
+          'Collaboration',
+          'CitationCount',
+          'CitationsPerPublication',
+          'CollaborationImpact',
+          'CitedPublications',
+          'FieldWeightedCitationImpact',
+          'HIndices',
+          'ScholarlyOutput',
+          'PublicationsInTopJournalPercentiles',
+          'OutputsInTopCitationPercentiles',
+        ],
+        {
+          queries: {
+            byYear: false,
+            yearRange: '10yrs',
+          },
+          rateLimitNotify: (limit, remaining, reset, status) =>
+            console.log(
+              `\t%c[${indexText}] rateLimit: ${remaining?.padStart(
+                5,
+                ' ',
+              )}/${limit} reset: ${reset} [${status}]`,
+              'color: crimson',
+            ),
+        },
+      ),
   );
 
   const sortedBy = 'coverDate,-title';
 
-  const [scopusSearchStream, scopusSearchCachingStream] =
-    inputScopusSearchStream
-      .pipeThrough(
-        map(async (streamData) => {
-          const { index, id, indexText, rest } = streamData;
-
-          // const query = `AU-ID(${id}) AND FIRSTAUTH(${name})`;
-          const query = `AU-ID(${id})`;
+  const [scopusSearchStream, scopusSearchCachingPromise] = fetchFromCacheOrApi(
+    inputScopusSearchStream,
+    'scopus-search',
+    getScopusSearchCache,
+    getScopusSearchError,
+    'darkcyan',
+    ({ id, indexText }) =>
+      scopusSearchApi.search(
+        {
+          query: `AU-ID(${id})`,
+          view: 'COMPLETE',
+          sort: sortedBy,
+        },
+        (limit, remaining, reset, status) =>
           console.log(
-            `\t%c[${indexText}] loading: ${query}`,
+            `\t%c[${indexText}] rateLimit: ${remaining?.padStart(
+              5,
+              ' ',
+            )}/${limit} reset: ${reset} [${status}]`,
             'color: darkcyan',
-          );
-          try {
-            if (id === '') {
-              throw new Error(`The scopus-id for index: "${index}" is empty`);
-            }
-
-            let isCached = true;
-
-            const body = await (async () => {
-              try {
-                return JSON.parse(
-                  await Deno.readTextFile(getScopusSearchCache(streamData)),
-                ) as ScopusSearchResponseBody<ScopusSearchEntry>;
-              } catch {
-                isCached = false;
-                return await scopusSearchApi.search(
-                  {
-                    query: query,
-                    view: 'COMPLETE',
-                    sort: sortedBy,
-                  },
-                  (limit, remaining, reset, status) =>
-                    console.log(
-                      `\t%c[${indexText}] rateLimit: ${remaining?.padStart(
-                        5,
-                        ' ',
-                      )}/${limit} reset: ${reset} [${status}]`,
-                      'color: darkcyan',
-                    ),
-                );
-              }
-            })();
-
-            console.log(
-              `\t%c[${indexText}] loaded: ${body['search-results']['entry'].length}/${body['search-results']['opensearch:totalResults']}`,
-              'color: darkcyan',
-            );
-
-            return {
-              index,
-              id,
-              indexText,
-              rest,
-              isCached,
-              body,
-              type: 'result' as const,
-            };
-          } catch (err: unknown) {
-            console.error(`\t[${indexText}] error`, err);
-
-            return {
-              index,
-              id,
-              indexText,
-              rest,
-              isCached: false,
-              body:
-                err instanceof Error
-                  ? new Error(err.message, {
-                      cause: {
-                        query: query,
-                        error: err.cause,
-                        origin: err,
-                      },
-                    })
-                  : new Error(`${err}`, {
-                      cause: {
-                        query: query,
-                        origin: err,
-                      },
-                    }),
-              type: 'error' as const,
-            };
-          }
-        }),
-      )
-      .tee();
-
-  const scopusSearchCachingPromise = scopusSearchCachingStream.pipeTo(
-    writeCacheOrErrorToFile(
-      getScopusSearchCache,
-      getScopusSearchError,
-      'darkcyan',
-    ),
+          ),
+      ),
   );
 
   function extractMatric<MT extends MetricResult['metricType']>(
@@ -732,7 +518,7 @@ export async function generate(
       map(([authorBody, metricsBody, scopusSearchBody]) => {
         const { index, id, indexText, rest } = authorBody;
         console.log(
-          `\t%c[${indexText}] combinding: AUTHOR:${authorBody.id} | METRICS:${metricsBody.id} | SCOPUS-SEARCH:${scopusSearchBody.id}`,
+          `\t%c[${indexText}] 🎶 combinding: AUTHOR:${authorBody.id} | METRICS:${metricsBody.id} | SCOPUS-SEARCH:${scopusSearchBody.id}`,
           'color: darkorange',
         );
         if (
