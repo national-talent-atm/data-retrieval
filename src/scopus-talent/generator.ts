@@ -516,7 +516,29 @@ export async function generate(
         }),
       )
       .pipeThrough(new TextEncoderStream())
-      .pipeTo(fp.writable);
+      // .pipeTo(fp.writable);
+      .pipeTo(
+        new WritableStream({
+          async write(chunk) {
+            await fp.write(chunk);
+          },
+
+          close() {
+            console.log(
+              `\n%c🎆 The data is writen to file:${resultFile} `,
+              'font-weight: bold',
+            );
+
+            fp.close();
+          },
+
+          abort(reason) {
+            console.warn(`%cStream is aborted by ${reason}`, 'color: yellow');
+
+            fp.close();
+          },
+        }),
+      );
   })();
 
   await Promise.all([
