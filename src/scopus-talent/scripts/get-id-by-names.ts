@@ -1,3 +1,4 @@
+import { parseArgs } from 'jsr:@std/cli/parse-args';
 import { stringify } from 'jsr:@std/csv';
 import { TextLineStream } from 'jsr:@std/streams';
 import { ScopusAuthorSearchApi } from '../../elsevier-apis/scopus-author-search-api.ts';
@@ -22,10 +23,22 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'lao-test';
+const parsedArgs = parseArgs(Deno.args, {
+  string: ['target', 'additional-data-fn'],
+});
 
-const inputFile = `./target/${configName}.txt` as const;
-const outputDir = `./target/output/${configName}` as const;
+if (parsedArgs['_'].length === 0) {
+  console.error(`Configuration name is required.`);
+  Deno.exit(-1);
+}
+
+const configName = `${parsedArgs['_'][0]}`;
+
+const targetDir =
+  (!parsedArgs['target'] ? undefined : parsedArgs['target']) ?? './target';
+
+const inputFile = `${targetDir}/${configName}.txt` as const;
+const outputDir = `${targetDir}/output/${configName}` as const;
 const catchDir = outputDir;
 const resultFile = `${outputDir}/${configName}-result.csv`;
 
@@ -52,13 +65,9 @@ const inputStream = (await Deno.open(inputFile, { read: true })).readable
       let count = 1;
 
       return map((value) => {
-        const [
-          x_nameSearh,
-          x_firstNameEn,
-          x_lastNameEn,
-          x_industry,
-          x_university,
-        ] = value.split('\t').map((term) => term.trim());
+        const [x_nameSearh, x_firstNameEn, x_lastNameEn, x_industry] = value
+          .split('\t')
+          .map((term) => term.trim());
 
         const index = `${count++}`.padStart(5, ' ');
         const name = `${index.replaceAll(' ', '0')}-${x_firstNameEn}-${x_lastNameEn}`;
@@ -79,7 +88,6 @@ const inputStream = (await Deno.open(inputFile, { read: true })).readable
             x_firstNameEn,
             x_lastNameEn,
             x_industry,
-            x_university,
           },
         };
       });

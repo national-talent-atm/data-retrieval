@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "jsr:@std/bytes@^1.0.3": "1.0.4",
+    "jsr:@std/cli@*": "1.0.23",
     "jsr:@std/csv@*": "1.0.4",
     "jsr:@std/streams@*": "1.0.8",
     "jsr:@std/streams@^1.0.8": "1.0.8"
@@ -9,6 +10,9 @@
   "jsr": {
     "@std/bytes@1.0.4": {
       "integrity": "11a0debe522707c95c7b7ef89b478c13fb1583a7cfb9a85674cd2cc2e3a28abc"
+    },
+    "@std/cli@1.0.23": {
+      "integrity": "bf95b7a9425ba2af1ae5a6359daf58c508f2decf711a76ed2993cd352498ccca"
     },
     "@std/csv@1.0.4": {
       "integrity": "aa351de654b10b8a407275b61f588863b9538027fd47aed90dd9e7f54ab5bdc0",
