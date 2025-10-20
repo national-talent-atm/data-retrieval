@@ -1,0 +1,40 @@
+name: push-gh-pages
+run-name: ${{ github.actor }} is pushing gh-pages
+on:
+  release:
+    types: [published]
+
+jobs:
+  push-gh-pages:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup environment variables
+        run: |
+          echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_ENV
+      - name: Setup git user
+        run: |
+          git config --global user.email "${{ github.event.pusher.email }}"
+          git config --global user.name "${{ github.actor }}"
+      - name: Create push directory
+        run: |
+          mkdir gh-pages
+          git init -b gh-pages ./gh-pages
+          cd ./gh-pages
+          git remote add -t gh-pages origin \
+          https://git:${{ github.token }}@github.com/${{ github.repository }}.git
+          git pull origin gh-pages || exit 0
+          cd ..
+      - name: Add new version to push directory
+        run: |
+          rm -rf ./gh-pages/${{ env.VERSION }}
+          mkdir -p ./gh-pages/${{ env.VERSION }}
+          cp -rf ./src/* ./gh-pages/${{ env.VERSION }}/
+      - name: Push to gh-pages
+        run: |
+          cd ./gh-pages
+          git add .
+          git commit -m "${{ github.actor }} publis version ${{ env.VERSION }}"
+          git push origin gh-pages
