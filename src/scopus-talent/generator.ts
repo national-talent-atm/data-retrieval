@@ -14,7 +14,6 @@ import {
   multipleTee,
   tupleZipReadableStreams,
 } from '../streams.ts';
-import { readerToAsyncIterable } from '../utils.ts';
 import { ExtractFn } from './extractors/extractor.types.ts';
 import {
   FetchedStreamData,
@@ -323,11 +322,7 @@ export async function generate(
   const authorMetricsApi = new SciValAuthorApi(client);
   const scopusSearchApi = new ScopusSearchApi(client);
 
-  const inputStream = ReadableStream.from(
-    readerToAsyncIterable(await Deno.open(inputFile, { read: true }), {
-      closeAfterFinish: true,
-    }),
-  )
+  const inputStream = (await Deno.open(inputFile, { read: true })).readable
     .pipeThrough(new TextDecoderStream())
     .pipeThrough(new TextLineStream())
     .pipeThrough(map((value) => value.trim()))
@@ -516,29 +511,7 @@ export async function generate(
         }),
       )
       .pipeThrough(new TextEncoderStream())
-      // .pipeTo(fp.writable);
-      .pipeTo(
-        new WritableStream({
-          async write(chunk) {
-            await fp.write(chunk);
-          },
-
-          close() {
-            console.log(
-              `\n%c🎆 The data is writen to file:${resultFile} `,
-              'font-weight: bold',
-            );
-
-            fp.close();
-          },
-
-          abort(reason) {
-            console.warn(`%cStream is aborted by ${reason}`, 'color: yellow');
-
-            fp.close();
-          },
-        }),
-      );
+      .pipeTo(fp.writable);
   })();
 
   await Promise.all([
@@ -547,6 +520,11 @@ export async function generate(
     scopusSearchCachingPromise,
     resultPromise,
   ]);
+
+  console.log(
+    `\n%c🎆 The data is writen to file:${resultFile} `,
+    'font-weight: bold',
+  );
 
   return;
 }

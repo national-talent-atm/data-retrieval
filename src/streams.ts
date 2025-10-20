@@ -341,7 +341,7 @@ export async function toArray<T>(
 export function multipleTee<T>(
   readableStream: ReadableStream<T>,
   length: number,
-): ReadableStream<T>[] {
+): readonly ReadableStream<T>[] {
   return Array.from({ length: length - 1 }).reduce(
     (result: ReadableStream<T>[]) => {
       const next = result.pop() as ReadableStream<T>;

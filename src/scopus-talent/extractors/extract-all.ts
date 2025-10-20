@@ -150,15 +150,21 @@ export function generateExtractAllFn({
     const surname = authorResult['author-profile']['preferred-name'].surname;
 
     const ipDoc = ((currentAffiliation) =>
-      (Array.isArray(currentAffiliation)
-        ? (currentAffiliation.find(
-            (affiliation) => affiliation['ip-doc']['@type'] === 'dept',
-          ) ?? currentAffiliation[0])
-        : currentAffiliation)['ip-doc'])(
-      authorResult['author-profile']['affiliation-current'].affiliation,
+      typeof currentAffiliation === 'undefined'
+        ? undefined
+        : (Array.isArray(currentAffiliation)
+            ? (currentAffiliation.find(
+                (affiliation) => affiliation['ip-doc']['@type'] === 'dept',
+              ) ?? currentAffiliation[0])
+            : currentAffiliation)['ip-doc'])(
+      authorResult['author-profile']['affiliation-current']?.affiliation,
     );
 
     const aff = ((ipDoc) => {
+      if (typeof ipDoc === 'undefined') {
+        return undefined;
+      }
+
       const { department, facAndUni } =
         ipDoc['@type'] === 'dept'
           ? {
@@ -245,11 +251,11 @@ export function generateExtractAllFn({
       co_author10: extractName(sortedCoauthorEntries[9]?.[1]?.author),
       co_author10_id: sortedCoauthorEntries[9]?.[1]?.author?.authid,
 
-      'affiliation-department': aff.department,
-      'affiliation-faculty': aff.faculty,
-      'affiliation-university': aff.university,
-      'affiliation-city': aff.city,
-      'affiliation-country': aff.country,
+      'affiliation-department': aff?.department,
+      'affiliation-faculty': aff?.faculty,
+      'affiliation-university': aff?.university,
+      'affiliation-city': aff?.city,
+      'affiliation-country': aff?.country,
     };
   };
 }

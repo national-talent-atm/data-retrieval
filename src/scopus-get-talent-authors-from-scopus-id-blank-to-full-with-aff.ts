@@ -5,6 +5,7 @@
 
 import { stringify } from 'jsr:@std/csv';
 import { TextLineStream } from 'jsr:@std/streams';
+import { readAsjcMap } from './asjc.ts';
 import { ScopusAuthorRetrievalApi } from './elsevier-apis/scopus-author-retrieval-api.ts';
 import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
@@ -24,7 +25,6 @@ import {
 import { SciValAuthorApi } from './sci-val-apis/sci-val-author.ts';
 import { filter, flatMap, map, tupleZipReadableStreams } from './streams.ts';
 import { readerToAsyncIterable } from './utils.ts';
-import { readAsjcMap } from './asjc.ts';
 
 const getAuthorFileName = (fileId: string) => {
   return `au-id-${fileId}.json` as const;
@@ -49,7 +49,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'pure-scopus-id-20241229';
+const configName = 'dpst-20250422-0001-0500';
 const sortedBy = 'coverDate,-title';
 
 const inputFile = `./target/${configName}.txt` as const;
@@ -590,8 +590,8 @@ const combinedStream = tupleZipReadableStreams(
           });
       }
 
-      const sortedKeywordEntries = [...keywordMap.entries()].sort((pre, next) =>
-        pre[1] > next[1] ? -1 : pre[1] < next[1] ? 1 : 0,
+      const sortedKeywordEntries = [...keywordMap.entries()].sort(
+        (pre, next) => (pre[1] > next[1] ? -1 : pre[1] < next[1] ? 1 : 0),
       );
 
       const coauthorMap = new Map<
@@ -618,8 +618,8 @@ const combinedStream = tupleZipReadableStreams(
           pre[1].count > next[1].count
             ? -1
             : pre[1].count < next[1].count
-            ? 1
-            : 0,
+              ? 1
+              : 0,
       );
 
       const givenName =
@@ -628,9 +628,9 @@ const combinedStream = tupleZipReadableStreams(
 
       const ipDoc = ((currentAffiliation) =>
         (Array.isArray(currentAffiliation)
-          ? currentAffiliation.find(
+          ? (currentAffiliation.find(
               (affiliation) => affiliation['ip-doc']['@type'] === 'dept',
-            ) ?? currentAffiliation[0]
+            ) ?? currentAffiliation[0])
           : currentAffiliation)['ip-doc'])(
         authorResult['author-profile']['affiliation-current'].affiliation,
       );

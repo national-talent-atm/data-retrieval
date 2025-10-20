@@ -81,7 +81,7 @@ export type ScopusAuthorProfile = {
   classificationgroup: ScopusClassificationGroup;
   'publication-range': ScopusRange;
   'journal-history': ScopusJournalHistory;
-  'affiliation-current': {
+  'affiliation-current'?: {
     affiliation: ScopusProfileAffiliation | ScopusProfileAffiliation[];
   };
   'affiliation-history': ScopusProfileAffiliationHistory;

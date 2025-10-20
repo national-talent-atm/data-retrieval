@@ -5,14 +5,14 @@
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "deno.inlayHints.enumMemberValues.enabled": false,
-  "deno.inlayHints.functionLikeReturnTypes.enabled": false,
-  "deno.inlayHints.parameterNames.enabled": "none",
-  "deno.inlayHints.propertyDeclarationTypes.enabled": false,
-  "deno.inlayHints.parameterTypes.enabled": false,
-  "deno.inlayHints.parameterNames.suppressWhenArgumentMatchesName": false,
-  "deno.inlayHints.variableTypes.enabled": false,
-  "deno.inlayHints.variableTypes.suppressWhenTypeMatchesName": false,
+  "typescript.inlayHints.enumMemberValues.enabled": false,
+  "typescript.inlayHints.functionLikeReturnTypes.enabled": false,
+  "typescript.inlayHints.parameterNames.enabled": "none",
+  "typescript.inlayHints.propertyDeclarationTypes.enabled": false,
+  "typescript.inlayHints.parameterTypes.enabled": false,
+  "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": false,
+  "typescript.inlayHints.variableTypes.enabled": false,
+  "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": false,
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.organizeImports": "explicit"
