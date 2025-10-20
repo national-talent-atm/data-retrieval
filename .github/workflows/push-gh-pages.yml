@@ -7,6 +7,8 @@ on:
 jobs:
   push-gh-pages:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Grants write access to the repository contents
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name }}
     steps:
