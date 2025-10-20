@@ -4,12 +4,13 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write # Grants write access to the repository contents
+  packages: write # Grants write access to packages
+
 jobs:
   push-gh-pages:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Grants write access to the repository contents
-      packages: write # Grants write access to packages
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name }}
     steps:
