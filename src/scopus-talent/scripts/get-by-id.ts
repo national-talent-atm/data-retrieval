@@ -12,7 +12,7 @@ if (!apiKey) {
 
 const apiKeys = apiKey.split(/\s*,\s*/gi).filter((value) => value !== '');
 
-const configName = 'dpst-20250422-1501-1757';
+const configName = 'lao-test-id';
 const targetDir = './target';
 
 await generate(configName, targetDir, apiKeys, generateExtractAllFn());
