@@ -1,4 +1,4 @@
-import { toTransformStream } from 'jsr:@std/streams';
+import { toTransformStream } from 'jsr:@std/streams@1.0.13';
 import { ReadableStreamTuple } from './utility-types.ts';
 
 export const zeroCopyQueuingStrategy = new CountQueuingStrategy({

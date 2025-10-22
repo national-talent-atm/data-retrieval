@@ -1,9 +1,9 @@
-import { TextLineStream } from 'https://deno.land/std@0.208.0/streams/mod.ts';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
+import { AuthorMetricsResponseBody } from './elsevier-types/sci-val-author-types.ts';
+import { SciValAuthorApi } from './sci-val-apis/sci-val-author.ts';
 import { filter, map } from './streams.ts';
 import { readerToAsyncIterable } from './utils.ts';
-import { SciValAuthorApi } from './sci-val-apis/sci-val-author.ts';
-import { AuthorMetricsResponseBody } from './elsevier-types/sci-val-author-types.ts';
 
 const getFileName = (fileId: string) => {
   return `metrics-au-id-${fileId}.json` as const;

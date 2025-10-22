@@ -1,15 +1,15 @@
-import { TextLineStream } from 'https://deno.land/std@0.210.0/streams/mod.ts';
-import { stringify } from 'https://deno.land/std@0.210.0/csv/mod.ts';
-import { ScopusClient } from './elsevier-clients/scopus-client.ts';
-import { filter, flatMap, map, tupleZipReadableStreams } from './streams.ts';
+import { stringify } from 'jsr:@std/csv@1.0.6';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusAuthorRetrievalApi } from './elsevier-apis/scopus-author-retrieval-api.ts';
-import { ScopusAuthorResponseBody } from './elsevier-types/scopus-author-types.ts';
-import { readerToAsyncIterable } from './utils.ts';
-import { SciValAuthorApi } from './sci-val-apis/sci-val-author.ts';
+import { ScopusClient } from './elsevier-clients/scopus-client.ts';
 import {
   AuthorMetricsResponseBody,
   MetricResult,
 } from './elsevier-types/sci-val-author-types.ts';
+import { ScopusAuthorResponseBody } from './elsevier-types/scopus-author-types.ts';
+import { SciValAuthorApi } from './sci-val-apis/sci-val-author.ts';
+import { filter, flatMap, map, tupleZipReadableStreams } from './streams.ts';
+import { readerToAsyncIterable } from './utils.ts';
 
 const getAuthorFileName = (fileId: string) => {
   return `au-id-${fileId}.json` as const;

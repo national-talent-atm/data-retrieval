@@ -1,5 +1,5 @@
-import { stringify } from 'jsr:@std/csv';
-import { TextLineStream } from 'jsr:@std/streams';
+import { stringify } from 'jsr:@std/csv@1.0.6';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusAuthorSearchApi } from '../../elsevier-apis/scopus-author-search-api.ts';
 import { ScopusClient } from '../../elsevier-clients/scopus-client.ts';
 import { ScopusAuthorSearchEntry } from '../../elsevier-types/scopus-author-search-types.ts';

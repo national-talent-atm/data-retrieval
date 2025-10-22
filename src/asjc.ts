@@ -1,4 +1,4 @@
-import { TextLineStream } from 'jsr:@std/streams/text-line-stream';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { AsjcData } from './asjc.types.ts';
 import { filter, flatToStream, map } from './streams.ts';
 

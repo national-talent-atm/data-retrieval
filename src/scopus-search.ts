@@ -1,10 +1,10 @@
-import { TextLineStream } from 'https://deno.land/std@0.211.0/streams/mod.ts';
-import { stringify } from 'https://deno.land/std@0.211.0/csv/mod.ts';
-import { ScopusClient } from './elsevier-clients/scopus-client.ts';
-import { filter, flatMap, map } from './streams.ts';
+import { stringify } from 'jsr:@std/csv@1.0.6';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
-import { ScopusSearchResponseBody } from './elsevier-types/scopus-types.ts';
+import { ScopusClient } from './elsevier-clients/scopus-client.ts';
 import { ScopusSearchEntry } from './elsevier-types/scopus-search-types.ts';
+import { ScopusSearchResponseBody } from './elsevier-types/scopus-types.ts';
+import { filter, flatMap, map } from './streams.ts';
 
 const getFileName = (fileId: string) => {
   return `scopus-search-au-id-${fileId}.json` as const;

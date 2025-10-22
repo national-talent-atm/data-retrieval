@@ -1,8 +1,8 @@
-import { TextLineStream } from 'https://deno.land/std@0.208.0/streams/mod.ts';
-import { ScopusClient } from './elsevier-clients/scopus-client.ts';
-import { filter, map } from './streams.ts';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusAuthorRetrievalApi } from './elsevier-apis/scopus-author-retrieval-api.ts';
+import { ScopusClient } from './elsevier-clients/scopus-client.ts';
 import { ScopusAuthorResponseBody } from './elsevier-types/scopus-author-types.ts';
+import { filter, map } from './streams.ts';
 import { readerToAsyncIterable } from './utils.ts';
 
 const getFileName = (fileId: string) => {

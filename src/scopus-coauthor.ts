@@ -1,5 +1,5 @@
-import { stringify } from 'https://deno.land/std@0.199.0/csv/mod.ts';
-import { TextLineStream } from 'https://deno.land/std@0.208.0/streams/mod.ts';
+import { stringify } from 'jsr:@std/csv@1.0.6';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusAuthorSearchApi } from './elsevier-apis/scopus-author-search-api.ts';
 import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';

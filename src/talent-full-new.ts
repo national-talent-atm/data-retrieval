@@ -3,8 +3,8 @@
  * Get all new data from Elsevier and copy some input data to output.
  */
 
-import { stringify } from 'https://deno.land/std@0.210.0/csv/mod.ts';
-import { TextLineStream } from 'https://deno.land/std@0.210.0/streams/mod.ts';
+import { stringify } from 'jsr:@std/csv@1.0.6';
+import { TextLineStream } from 'jsr:@std/streams@1.0.13';
 import { ScopusAuthorRetrievalApi } from './elsevier-apis/scopus-author-retrieval-api.ts';
 import { ScopusSearchApi } from './elsevier-apis/scopus-search-api.ts';
 import { ScopusClient } from './elsevier-clients/scopus-client.ts';
@@ -596,8 +596,8 @@ const combinedStream = tupleZipReadableStreams(
           });
       }
 
-      const sortedKeywordEntries = [...keywordMap.entries()].sort((pre, next) =>
-        pre[1] > next[1] ? -1 : pre[1] < next[1] ? 1 : 0,
+      const sortedKeywordEntries = [...keywordMap.entries()].sort(
+        (pre, next) => (pre[1] > next[1] ? -1 : pre[1] < next[1] ? 1 : 0),
       );
 
       const coauthorMap = new Map<
@@ -624,8 +624,8 @@ const combinedStream = tupleZipReadableStreams(
           pre[1].count > next[1].count
             ? -1
             : pre[1].count < next[1].count
-            ? 1
-            : 0,
+              ? 1
+              : 0,
       );
 
       const keywords = [keyword1, keyword2, keyword3, keyword4, keyword5];
