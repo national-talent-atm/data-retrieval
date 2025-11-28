@@ -193,16 +193,6 @@ export function generateExtractAllFn({
 
     return {
       id,
-      ...(typeof additionalDataFn === 'undefined'
-        ? {}
-        : additionalDataFn({
-            index,
-            id,
-            rest,
-            scopusAuthorResponseBody: authorBody.body,
-            authorMetricsResponseBody: metricsBody.body,
-            scopusSearchResponseBody: scopusSearchBody.body,
-          })),
       'given-name': givenName,
       surname,
       name: authorBody.body['author-retrieval-response'][0]['author-profile'][
@@ -256,6 +246,16 @@ export function generateExtractAllFn({
       'affiliation-university': aff?.university,
       'affiliation-city': aff?.city,
       'affiliation-country': aff?.country,
+      ...(typeof additionalDataFn === 'undefined'
+        ? {}
+        : additionalDataFn({
+            index,
+            id,
+            rest,
+            scopusAuthorResponseBody: authorBody.body,
+            authorMetricsResponseBody: metricsBody.body,
+            scopusSearchResponseBody: scopusSearchBody.body,
+          })),
     };
   };
 }
